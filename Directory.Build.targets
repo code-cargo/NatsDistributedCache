@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- If NuGetLockRuntimeIdentifier is set, copy it to NETCoreSdkRuntimeIdentifier for Aspire.Dashboard.Sdk -->
+    <NETCoreSdkRuntimeIdentifier Condition="'$(NuGetLockRuntimeIdentifier)' != ''">$(NuGetLockRuntimeIdentifier)</NETCoreSdkRuntimeIdentifier>
+
+    <!-- Setup NuGet lockfiles -->
+    <RestorePackagesWithLockFile >true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
+    <NuGetLockFilePath>packages.$(NETCoreSdkRuntimeIdentifier).lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+</Project>

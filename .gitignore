@@ -1,0 +1,7 @@
+# Build folders
+[Bb]in/
+[Oo]bj/
+
+# User settings
+*.DotSettings.user
+*.sln.DotSettings

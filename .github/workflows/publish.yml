@@ -1,0 +1,41 @@
+name: Publish Release to GitHub Packages
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  packages: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.x.x
+
+    - name: Build and strong name
+      run: dotnet build --configuration Release --no-incremental -p:version=${GITHUB_REF#refs/*/v} -p:SignAssembly=true -p:AssemblyOriginatorKeyFile=../key.snk
+
+    - name: Pack SDK
+      run: dotnet pack -p:version=${GITHUB_REF#refs/*/v} -o ./publish
+
+    - name: Configure NuGet source
+      run: dotnet nuget add source --username ${GITHUB_REPOSITORY_OWNER} --password ${GITHUB_TOKEN} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json"
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+    - name: Publish to GitHub Packages
+      run: dotnet nuget push ./publish/*.nupkg --skip-duplicate --source github
+      env:
+        NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
