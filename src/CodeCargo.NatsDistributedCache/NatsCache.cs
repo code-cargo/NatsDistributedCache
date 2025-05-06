@@ -444,8 +444,14 @@ namespace CodeCargo.NatsDistributedCache
             var prefixedKey = GetKeyPrefix(key);
             try
             {
-                var kvEntry = await kvStore.GetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
+                var natsResult = await kvStore.TryGetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
                     .ConfigureAwait(false);
+                if (!natsResult.Success)
+                {
+                    return null;
+                }
+
+                var kvEntry = natsResult.Value;
 
                 // Check if the value is null
                 if (kvEntry.Value == null)
@@ -495,8 +501,14 @@ namespace CodeCargo.NatsDistributedCache
                 // Try once more to get the latest value
                 try
                 {
-                    var kvEntry = await kvStore.GetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
+                    var natsResult = await kvStore.TryGetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
                         .ConfigureAwait(false);
+                    if (!natsResult.Success)
+                    {
+                        return null;
+                    }
+
+                    var kvEntry = natsResult.Value;
 
                     // Check if the value is null
                     if (kvEntry.Value == null)

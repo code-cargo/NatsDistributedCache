@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
-using NATS.Client.KeyValueStore;
 using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
@@ -123,7 +122,8 @@ public class TimeExpirationAsyncTests : TestBase
 
         await Task.Delay(TimeSpan.FromSeconds(3));
 
-        await Assert.ThrowsAsync<NatsKVKeyNotFoundException>(async () => await cache.GetAsync(key));
+        result = await cache.GetAsync(key);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -149,7 +149,8 @@ public class TimeExpirationAsyncTests : TestBase
 
         await Task.Delay(TimeSpan.FromSeconds(3));
 
-        await Assert.ThrowsAsync<NatsKVKeyNotFoundException>(async () => await cache.GetAsync(key));
+        result = await cache.GetAsync(key);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -181,7 +182,8 @@ public class TimeExpirationAsyncTests : TestBase
             await Task.Delay(TimeSpan.FromSeconds(0.5));
         }
 
-        await Assert.ThrowsAsync<NatsKVKeyNotFoundException>(async () => await cache.GetAsync(key));
+        result = await cache.GetAsync(key);
+        Assert.Null(result);
     }
 
     private static async Task<string> GetNameAndReset(IDistributedCache cache, [CallerMemberName] string caller = "")
