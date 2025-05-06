@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using CodeCargo.NatsDistributedCache.UnitTests.TestHelpers;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
@@ -10,13 +11,23 @@ using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.UnitTests;
 
+public interface ITestNatsConnection : INatsConnection
+{
+    public new NatsOpts Opts { get; set; }
+}
+
 public class TimeExpirationUnitTests
 {
-    private readonly Mock<INatsConnection> _mockNatsConnection;
+    private readonly Mock<ITestNatsConnection> _mockNatsConnection;
 
     public TimeExpirationUnitTests()
     {
-        _mockNatsConnection = new Mock<INatsConnection>();
+        _mockNatsConnection = new Mock<ITestNatsConnection>();
+        // Setup the mock to properly handle the Opts property
+        var opts = new NatsOpts { LoggerFactory = new LoggerFactory() };
+        _mockNatsConnection.SetupGet(m => m.Opts).Returns(opts);
+        var connection = new NatsConnection(opts);
+        _mockNatsConnection.SetupGet(m => m.Connection).Returns(connection);
     }
 
     private IDistributedCache CreateCacheInstance()

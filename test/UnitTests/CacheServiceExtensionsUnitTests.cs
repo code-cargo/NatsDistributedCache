@@ -102,6 +102,9 @@ public class CacheServiceExtensionsUnitTests
             wasInvoked = true;
         });
 
+        var sp = services.BuildServiceProvider();
+        _ = sp.GetRequiredService<IDistributedCache>();
+
         // Assert
         Assert.True(wasInvoked);
     }

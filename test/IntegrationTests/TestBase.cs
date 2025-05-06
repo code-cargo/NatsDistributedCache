@@ -89,7 +89,11 @@ public abstract class TestBase(NatsIntegrationFixture fixture) : IAsyncLifetime
         // Create or ensure KV store exists
         var jsContext = NatsConnection.CreateJetStreamContext();
         var kvContext = new NatsKVContext(jsContext);
-        await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache"));
+        var kvConfig = new NatsKVConfig("cache")
+        {
+            LimitMarkerTTL = TimeSpan.MaxValue,
+        };
+        await kvContext.CreateOrUpdateStoreAsync(kvConfig);
     }
 
     /// <summary>
