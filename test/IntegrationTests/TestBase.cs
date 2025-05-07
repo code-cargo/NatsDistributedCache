@@ -1,55 +1,31 @@
-using System;
-using System.Collections.Concurrent;
-using System.Threading.Tasks;
 using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Client.JetStream;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
-using Xunit;
-using Xunit.Sdk;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 /// <summary>
 /// Base class for NATS integration tests that provides test output logging and fixture access
 /// </summary>
-public abstract class TestBase(NatsIntegrationFixture fixture) : IAsyncLifetime
+public abstract class TestBase : IAsyncDisposable
 {
-    private const string ServiceProviderKey = "ServiceProvider";
-    private readonly NatsIntegrationFixture _fixture = fixture ?? throw new ArgumentNullException(nameof(fixture));
-    private static readonly ConcurrentBag<ServiceProvider> _serviceProviders = new();
-    private ServiceProvider? _serviceProvider;
+    private int _disposed;
 
     /// <summary>
-    /// Gets the NATS connection from the fixture
+    /// Constructor that sets up the service provider with test output logging
     /// </summary>
-    protected INatsConnection NatsConnection => _fixture.NatsConnection;
-
-    /// <summary>
-    /// Gets the service provider configured with test logging and NATS services
-    /// </summary>
-    protected IServiceProvider ServiceProvider => _serviceProvider ??
-        throw new InvalidOperationException("Service provider not initialized. Make sure InitializeAsync has been called.");
-
-    // Static constructor to register for test class configuration
-    static TestBase()
+    /// <param name="fixture">The NATS integration fixture</param>
+    protected TestBase(NatsIntegrationFixture fixture)
     {
-        // xUnit v3 will call ConfigureTestClass
-    }
-
-    /// <summary>
-    /// Configures the test class - this method is called by xUnit v3
-    /// </summary>
-    /// <param name="context">The test context</param>
-    public static void ConfigureTestClass(TestContext context)
-    {
-        // Get the test output helper
-        var output = context.TestOutputHelper;
+        // Get the test output helper from the current test context
+        var testContext = TestContext.Current;
+        var output = testContext.TestOutputHelper;
         if (output == null)
-            return;
+        {
+            throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
+        }
 
         // Create a service collection and configure logging
         var services = new ServiceCollection();
@@ -59,52 +35,34 @@ public abstract class TestBase(NatsIntegrationFixture fixture) : IAsyncLifetime
             builder.AddXUnitTestOutput(output);
         });
 
-        // Build the service provider and store it in the context's key-value storage
-        var serviceProvider = services.BuildServiceProvider();
-        _serviceProviders.Add(serviceProvider);
-        context.KeyValueStorage[ServiceProviderKey] = serviceProvider;
+        // Configure the service collection with NATS connection
+        fixture.ConfigureServices(services);
+
+        // Build service provider
+        ServiceProvider = services.BuildServiceProvider();
     }
 
     /// <summary>
-    /// Initializes the test by ensuring the KV store exists
+    /// Gets the service provider configured with test logging and NATS services
     /// </summary>
-    public virtual async ValueTask InitializeAsync()
-    {
-        // Setup service provider for this instance
-        var services = new ServiceCollection();
+    protected ServiceProvider ServiceProvider { get; }
 
-        // Add NATS connection directly
-        services.AddSingleton<INatsConnection>(_fixture.NatsConnection);
-
-        // Add logging
-        services.AddLogging(builder =>
-        {
-            builder.ClearProviders();
-        });
-
-        // Build service provider
-        _serviceProvider = services.BuildServiceProvider();
-        _serviceProviders.Add(_serviceProvider);
-
-        // Create or ensure KV store exists
-        var jsContext = NatsConnection.CreateJetStreamContext();
-        var kvContext = new NatsKVContext(jsContext);
-        var kvConfig = new NatsKVConfig("cache")
-        {
-            LimitMarkerTTL = TimeSpan.FromSeconds(1),
-        };
-        await kvContext.CreateOrUpdateStoreAsync(kvConfig);
-    }
+    /// <summary>
+    /// Gets the NATS connection from the service provider
+    /// </summary>
+    protected INatsConnection NatsConnection => ServiceProvider.GetRequiredService<INatsConnection>();
 
     /// <summary>
     /// Cleanup after the test
     /// </summary>
     public virtual async ValueTask DisposeAsync()
     {
-        if (_serviceProvider != null)
+        if (Interlocked.Increment(ref _disposed) != 1)
         {
-            await _serviceProvider.DisposeAsync();
-            _serviceProvider = null;
+            return;
         }
+
+        await ServiceProvider.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 }
