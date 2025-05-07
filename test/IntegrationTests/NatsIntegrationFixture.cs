@@ -1,8 +1,9 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Aspire.Hosting;
+using CodeCargo.NatsDistributedCache.TestUtils;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.KeyValueStore;
+using NATS.Net;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
@@ -13,13 +14,14 @@ public class NatsIntegrationFixture : IAsyncLifetime
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(30);
     private DistributedApplication? _app;
-    private INatsConnection? _natsConnection;
+    private int _disposed;
+    private ServiceProvider? _serviceProvider;
 
     /// <summary>
-    /// Gets the NATS connection for accessing the test NATS server
+    /// Gets the NATS connection
     /// </summary>
-    public INatsConnection NatsConnection => _natsConnection ?? throw new InvalidOperationException(
-        "NATS connection not initialized. Make sure InitializeAsync has been called.");
+    public INatsConnection NatsConnection => _serviceProvider?.GetRequiredService<INatsConnection>()
+                                             ?? throw new InvalidOperationException("InitializeAsync was not called");
 
     /// <summary>
     /// Initializes the fixture by starting the NATS server and creating a connection
@@ -43,31 +45,48 @@ public class NatsIntegrationFixture : IAsyncLifetime
             throw new InvalidOperationException("Cannot find connection string for NATS");
         }
 
-        // Create a NATS connection
-        var opts = new NatsOpts
+        // service provider
+        var services = new ServiceCollection();
+        services.AddLogging(builder =>
         {
-            Url = natsConnectionString,
-            Name = "IntegrationTest",
-            RequestReplyMode = NatsRequestReplyMode.Direct,
-        };
-        _natsConnection = new NatsConnection(opts);
+            builder.AddConsole();
+        });
+        services.AddNatsTestServices(natsConnectionString);
+        _serviceProvider = services.BuildServiceProvider();
+
+        // create the KV store
+        var kvContext = NatsConnection.CreateKeyValueStoreContext();
+        await kvContext.CreateOrUpdateStoreAsync(
+            new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1), },
+            TestContext.Current.CancellationToken);
     }
+
+    /// <summary>
+    /// Configures the services with the NATS connection
+    /// </summary>
+    /// <param name="services">The service collection to configure</param>
+    public void ConfigureServices(IServiceCollection services) => services.AddSingleton(NatsConnection);
 
     /// <summary>
     /// Disposes the fixture by shutting down the NATS server
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        if (_natsConnection != null)
+        if (Interlocked.Increment(ref _disposed) != 1)
         {
-            await _natsConnection.DisposeAsync();
-            _natsConnection = null;
+            return;
         }
 
         if (_app != null)
         {
+            var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await _app.StopAsync(stopCts.Token);
             await _app.DisposeAsync();
-            _app = null;
+        }
+
+        if (_serviceProvider != null)
+        {
+            await _serviceProvider.DisposeAsync();
         }
 
         GC.SuppressFinalize(this);
