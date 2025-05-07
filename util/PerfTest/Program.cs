@@ -51,7 +51,9 @@ var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 Console.WriteLine("Creating KV store...");
 var nats = host.Services.GetRequiredService<INatsConnection>();
 var kv = nats.CreateKeyValueStoreContext();
-await kv.CreateStoreAsync(new NatsKVConfig("cache"), startupCts.Token);
+await kv.CreateOrUpdateStoreAsync(
+    new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) },
+    startupCts.Token);
 Console.WriteLine("KV store created");
 
 // Run the host
