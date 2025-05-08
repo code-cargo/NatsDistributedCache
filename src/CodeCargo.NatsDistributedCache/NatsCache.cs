@@ -13,10 +13,6 @@ using NATS.Net;
 
 namespace CodeCargo.NatsDistributedCache
 {
-    [JsonSerializable(typeof(CacheEntry))]
-    internal partial class CacheEntryJsonContext : JsonSerializerContext
-    {
-    }
 
     /// <summary>
     /// Cache entry for storing in NATS Key-Value Store
@@ -38,16 +34,6 @@ namespace CodeCargo.NatsDistributedCache
     /// </summary>
     public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
-        private const string AbsoluteExpirationKey = "absexp";
-        private const string SlidingExpirationKey = "sldexp";
-        private const string DataKey = "data";
-
-        // combined keys - same hash keys fetched constantly; avoid allocating an array each time
-        private static readonly string[] GetHashFieldsNoData = new[] { AbsoluteExpirationKey, SlidingExpirationKey };
-
-        private static readonly string[] GetHashFieldsWithData =
-            new[] { AbsoluteExpirationKey, SlidingExpirationKey, DataKey };
-
         // Static JSON serializer for CacheEntry
         private static readonly NatsJsonContextSerializer<CacheEntry> _cacheEntrySerializer =
             new NatsJsonContextSerializer<CacheEntry>(CacheEntryJsonContext.Default);
@@ -56,9 +42,9 @@ namespace CodeCargo.NatsDistributedCache
         private readonly NatsCacheOptions _options;
         private readonly string _instanceName;
         private readonly INatsConnection _natsConnection;
+        private readonly SemaphoreSlim _connectionLock = new(initialCount: 1, maxCount: 1);
         private NatsKVStore? _kvStore;
         private bool _disposed;
-        private readonly SemaphoreSlim _connectionLock = new SemaphoreSlim(initialCount: 1, maxCount: 1);
 
         public NatsCache(
             IOptions<NatsCacheOptions> optionsAccessor,
@@ -84,23 +70,16 @@ namespace CodeCargo.NatsDistributedCache
         // This is the method used by hybrid caching to determine if it should use the distributed instance
         internal virtual bool IsHybridCacheActive() => false;
 
-        private string GetKeyPrefix(string key)
-        {
-            return string.IsNullOrEmpty(_instanceName)
+        private string GetKeyPrefix(string key) => string.IsNullOrEmpty(_instanceName)
                 ? key
                 : _instanceName + ":" + key;
-        }
 
         /// <summary>
         /// Gets or sets a value with the given key.
         /// </summary>
         /// <param name="key">The key to get the value for.</param>
         /// <returns>The value for the given key, or null if not found.</returns>
-        public byte[]? Get(string key)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            return GetAndRefresh(key, getData: true);
-        }
+        public byte[]? Get(string key) => GetAsync(key).GetAwaiter().GetResult();
 
         /// <summary>
         /// Asynchronously gets or sets a value with the given key.
@@ -121,34 +100,7 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="key">The key to set the value for.</param>
         /// <param name="value">The value to set.</param>
         /// <param name="options">The cache options for the value.</param>
-        public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            ArgumentNullException.ThrowIfNull(value);
-            ArgumentNullException.ThrowIfNull(options);
-
-            var ttl = GetTTL(options);
-            var entry = CreateCacheEntry(key, value, options);
-            var kvStore = GetKVStore().GetAwaiter().GetResult();
-
-            try
-            {
-                if (ttl.HasValue)
-                {
-                    kvStore.PutAsync(GetKeyPrefix(key), entry, ttl.Value, serializer: _cacheEntrySerializer, default).GetAwaiter()
-                        .GetResult();
-                }
-                else
-                {
-                    kvStore.PutAsync(GetKeyPrefix(key), entry, serializer: _cacheEntrySerializer, default).GetAwaiter().GetResult();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogException(ex);
-                throw;
-            }
-        }
+        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) => SetAsync(key, value, options).GetAwaiter().GetResult();
 
         /// <summary>
         /// Asynchronously sets a value with the given key.
@@ -167,17 +119,18 @@ namespace CodeCargo.NatsDistributedCache
             token.ThrowIfCancellationRequested();
 
             var ttl = GetTTL(options);
-            var entry = CreateCacheEntry(key, value, options);
+            var entry = CreateCacheEntry(value, options);
             var kvStore = await GetKVStore().ConfigureAwait(false);
 
-            if (ttl.HasValue)
+            try
             {
-                await kvStore.PutAsync(GetKeyPrefix(key), entry, ttl.Value, serializer: _cacheEntrySerializer, token)
+                await kvStore.PutAsync(GetKeyPrefix(key), entry, ttl ?? default, _cacheEntrySerializer, token)
                     .ConfigureAwait(false);
             }
-            else
+            catch (Exception ex)
             {
-                await kvStore.PutAsync(GetKeyPrefix(key), entry, serializer: _cacheEntrySerializer, token).ConfigureAwait(false);
+                LogException(ex);
+                throw;
             }
         }
 
@@ -185,11 +138,7 @@ namespace CodeCargo.NatsDistributedCache
         /// Refreshes a value in the cache based on its key, resetting its sliding expiration timeout (if any).
         /// </summary>
         /// <param name="key">The key to refresh.</param>
-        public void Refresh(string key)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            GetAndRefresh(key, getData: false);
-        }
+        public void Refresh(string key) => RefreshAsync(key).GetAwaiter().GetResult();
 
         /// <summary>
         /// Asynchronously refreshes a value in the cache based on its key, resetting its sliding expiration timeout (if any).
@@ -208,11 +157,7 @@ namespace CodeCargo.NatsDistributedCache
         /// Removes the value with the given key.
         /// </summary>
         /// <param name="key">The key to remove the value for.</param>
-        public void Remove(string key)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            GetKVStore().GetAwaiter().GetResult().DeleteAsync(GetKeyPrefix(key)).GetAwaiter().GetResult();
-        }
+        public void Remove(string key) => RemoveAsync(key).GetAwaiter().GetResult();
 
         /// <summary>
         /// Asynchronously removes the value with the given key.
@@ -294,7 +239,7 @@ namespace CodeCargo.NatsDistributedCache
             return options;
         }
 
-        private TimeSpan? GetTTL(DistributedCacheEntryOptions options)
+        private static TimeSpan? GetTTL(DistributedCacheEntryOptions options)
         {
             if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= DateTimeOffset.Now)
             {
@@ -348,7 +293,7 @@ namespace CodeCargo.NatsDistributedCache
             return options.SlidingExpiration;
         }
 
-        private CacheEntry CreateCacheEntry(string key, byte[] value, DistributedCacheEntryOptions options)
+        private CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
         {
             var absoluteExpiration = options.AbsoluteExpiration;
             if (options.AbsoluteExpirationRelativeToNow.HasValue)
@@ -471,14 +416,13 @@ namespace CodeCargo.NatsDistributedCache
             }
         }
 
-        private async Task UpdateEntryExpirationAsync(NatsKVStore kvStore, string key, NatsKVEntry<CacheEntry> kvEntry,
-            CancellationToken token)
+        private async Task UpdateEntryExpirationAsync(NatsKVStore kvStore, string key, NatsKVEntry<CacheEntry> kvEntry, CancellationToken token)
         {
             // Calculate new TTL based on sliding expiration
             TimeSpan? ttl = null;
 
             // If we have a sliding expiration, use it as the TTL
-            if (kvEntry.Value.SlidingExpiration != null)
+            if (kvEntry.Value?.SlidingExpiration != null)
             {
                 ttl = TimeSpan.FromMilliseconds(long.Parse(kvEntry.Value.SlidingExpiration));
 
@@ -611,27 +555,7 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public bool TryGet(string key, IBufferWriter<byte> destination)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            ArgumentNullException.ThrowIfNull(destination);
-
-            try
-            {
-                var result = Get(key);
-                if (result != null)
-                {
-                    destination.Write(result);
-                    return true;
-                }
-            }
-            catch
-            {
-                // Ignore failures here; they will surface later
-            }
-
-            return false;
-        }
+        public bool TryGet(string key, IBufferWriter<byte> destination) => TryGetAsync(key, destination).GetAwaiter().GetResult();
 
         /// <inheritdoc />
         public async ValueTask<bool> TryGetAsync(string key, IBufferWriter<byte> destination, CancellationToken token = default)
@@ -659,24 +583,7 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public void Set(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(key);
-            ArgumentNullException.ThrowIfNull(options);
-
-            byte[] array;
-
-            if (value.IsSingleSegment)
-            {
-                array = value.First.ToArray();
-            }
-            else
-            {
-                array = value.ToArray();
-            }
-
-            Set(key, array, options);
-        }
+        public void Set(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options) => SetAsync(key, value, options).GetAwaiter().GetResult();
 
         /// <inheritdoc />
         public async ValueTask SetAsync(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options, CancellationToken token = default)
@@ -699,5 +606,10 @@ namespace CodeCargo.NatsDistributedCache
 
             await SetAsync(key, array, options, token).ConfigureAwait(false);
         }
+    }
+
+    [JsonSerializable(typeof(CacheEntry))]
+    internal partial class CacheEntryJsonContext : JsonSerializerContext
+    {
     }
 }
