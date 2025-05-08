@@ -515,7 +515,6 @@ namespace CodeCargo.NatsDistributedCache
 
         public void Dispose()
         {
-
             if (_disposed)
             {
                 return;

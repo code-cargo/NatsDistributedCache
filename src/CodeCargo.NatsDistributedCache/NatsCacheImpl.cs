@@ -14,9 +14,6 @@ namespace CodeCargo.NatsDistributedCache
     {
         private readonly IServiceProvider _services;
 
-        internal override bool IsHybridCacheActive()
-            => _services.GetService<HybridCache>() is not null;
-
         public NatsCacheImpl(IOptions<NatsCacheOptions> optionsAccessor, ILogger<NatsCache> logger, IServiceProvider services, INatsConnection natsConnection)
             : base(optionsAccessor, logger, natsConnection)
         {
@@ -28,5 +25,8 @@ namespace CodeCargo.NatsDistributedCache
         {
             _services = services; // important: do not check for HybridCache here due to dependency - creates a cycle
         }
+
+        internal override bool IsHybridCacheActive()
+            => _services.GetService<HybridCache>() is not null;
     }
 }

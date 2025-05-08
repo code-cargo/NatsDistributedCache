@@ -48,20 +48,6 @@ public class TimeExpirationTests : TestBase
         Assert.Null(result);
     }
 
-    // TODO: fails with NatsJSApiException: invalid per-message TTL - may not be needed at all?
-    // [Fact]
-    // public void AbsoluteSubSecondExpirationExpiresImmediately()
-    // {
-    //     var cache = CreateCacheInstance();
-    //     var key = GetNameAndReset(cache);
-    //     var value = new byte[1];
-    //
-    //     cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(0.25)));
-    //
-    //     var result = cache.Get(key);
-    //     Assert.Null(result);
-    // }
-
     // NegativeRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
 
     // ZeroRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs

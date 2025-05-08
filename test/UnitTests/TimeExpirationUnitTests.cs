@@ -13,6 +13,7 @@ public class TimeExpirationUnitTests
     public TimeExpirationUnitTests()
     {
         _mockNatsConnection = new Mock<INatsConnection>();
+
         // Setup the mock to properly handle the Opts property
         var opts = new NatsOpts { LoggerFactory = new LoggerFactory() };
         _mockNatsConnection.SetupGet(m => m.Opts).Returns(opts);

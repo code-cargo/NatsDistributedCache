@@ -67,20 +67,6 @@ public class TimeExpirationAsyncTests : TestBase
         Assert.Null(result);
     }
 
-    // TODO: fails with NatsJSApiException: invalid per-message TTL - may not be needed at all?
-    // [Fact]
-    // public async Task AbsoluteSubSecondExpirationExpiresImmediatelyAsync()
-    // {
-    //     var cache = CreateCacheInstance();
-    //     var key = await GetNameAndReset(cache);
-    //     var value = new byte[1];
-
-    //     await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(0.25)));
-
-    //     var result = await cache.GetAsync(key);
-    //     Assert.Null(result);
-    // }
-
     // NegativeRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
 
     // ZeroRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs

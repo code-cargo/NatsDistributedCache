@@ -101,7 +101,7 @@ public class CacheServiceExtensionsUnitTests
             options.BucketName = "cache";
             wasInvoked = true;
         });
-        
+
         // Build service provider and resolve options to trigger the setup action
         var sp = services.BuildServiceProvider();
         _ = sp.GetRequiredService<IDistributedCache>();
