@@ -1,21 +1,13 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Buffers;
-using System.Diagnostics;
-using System.IO;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
-using NATS.Client.JetStream;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
@@ -68,17 +60,17 @@ namespace CodeCargo.NatsDistributedCache
         private bool _disposed;
         private readonly SemaphoreSlim _connectionLock = new SemaphoreSlim(initialCount: 1, maxCount: 1);
 
-        public NatsCache(IOptions<NatsCacheOptions> optionsAccessor, ILogger<NatsCache> logger,
+        public NatsCache(
+            IOptions<NatsCacheOptions> optionsAccessor,
+            ILogger<NatsCache> logger,
             INatsConnection natsConnection)
         {
-            if (optionsAccessor == null)
-            {
-                throw new ArgumentNullException(nameof(optionsAccessor));
-            }
+            ArgumentNullException.ThrowIfNull(optionsAccessor);
+            ArgumentNullException.ThrowIfNull(natsConnection);
 
             _options = optionsAccessor.Value;
             _logger = logger;
-            _natsConnection = natsConnection ?? throw new ArgumentNullException(nameof(natsConnection));
+            _natsConnection = natsConnection;
             _instanceName = _options.InstanceName ?? string.Empty;
 
             // No need to connect immediately; will connect on-demand
@@ -106,11 +98,7 @@ namespace CodeCargo.NatsDistributedCache
         /// <returns>The value for the given key, or null if not found.</returns>
         public byte[]? Get(string key)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             return GetAndRefresh(key, getData: true);
         }
 
@@ -122,13 +110,8 @@ namespace CodeCargo.NatsDistributedCache
         /// <returns>The value for the given key, or null if not found.</returns>
         public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             token.ThrowIfCancellationRequested();
-
             return await GetAndRefreshAsync(key, getData: true, token: token).ConfigureAwait(false);
         }
 
@@ -140,20 +123,9 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="options">The cache options for the value.</param>
         public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (value == null)
-            {
-                throw new ArgumentNullException(nameof(value));
-            }
-
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
+            ArgumentNullException.ThrowIfNull(options);
 
             var ttl = GetTTL(options);
             var entry = CreateCacheEntry(key, value, options);
@@ -186,23 +158,11 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="options">The cache options for the value.</param>
         /// <param name="token">Optional. A <see cref="CancellationToken" /> to cancel the operation.</param>
         /// <returns>A <see cref="Task" /> that represents the asynchronous set operation.</returns>
-        public async Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options,
-            CancellationToken token = default)
+        public async Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (value == null)
-            {
-                throw new ArgumentNullException(nameof(value));
-            }
-
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
+            ArgumentNullException.ThrowIfNull(options);
 
             token.ThrowIfCancellationRequested();
 
@@ -227,11 +187,7 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="key">The key to refresh.</param>
         public void Refresh(string key)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             GetAndRefresh(key, getData: false);
         }
 
@@ -243,13 +199,8 @@ namespace CodeCargo.NatsDistributedCache
         /// <returns>A <see cref="Task" /> that represents the asynchronous refresh operation.</returns>
         public async Task RefreshAsync(string key, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             token.ThrowIfCancellationRequested();
-
             await GetAndRefreshAsync(key, getData: false, token: token).ConfigureAwait(false);
         }
 
@@ -259,11 +210,7 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="key">The key to remove the value for.</param>
         public void Remove(string key)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             GetKVStore().GetAwaiter().GetResult().DeleteAsync(GetKeyPrefix(key)).GetAwaiter().GetResult();
         }
 
@@ -275,10 +222,7 @@ namespace CodeCargo.NatsDistributedCache
         /// <returns>A <see cref="Task" /> that represents the asynchronous remove operation.</returns>
         public async Task RemoveAsync(string key, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
+            ArgumentNullException.ThrowIfNull(key);
 
             token.ThrowIfCancellationRequested();
 
@@ -429,11 +373,7 @@ namespace CodeCargo.NatsDistributedCache
 
         private byte[]? GetAndRefresh(string key, bool getData)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+            ArgumentNullException.ThrowIfNull(key);
             return GetAndRefreshAsync(key, getData).GetAwaiter().GetResult();
         }
 
@@ -575,14 +515,15 @@ namespace CodeCargo.NatsDistributedCache
 
         public void Dispose()
         {
-            if (!_disposed)
-            {
-                _connectionLock.Dispose();
-                _disposed = true;
 
-                // Set to null to ensure we don't use it after dispose
-                _kvStore = null;
+            if (_disposed)
+            {
+                return;
             }
+
+            _connectionLock.Dispose();
+            _disposed = true;
+            _kvStore = null; // Set to null to ensure we don't use it after dispose
         }
 
         /// <inheritdoc />
@@ -608,8 +549,7 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public async ValueTask<bool> TryGetValueAsync(string key, Memory<byte> destination,
-            CancellationToken token = default)
+        public async ValueTask<bool> TryGetValueAsync(string key, Memory<byte> destination, CancellationToken token = default)
         {
             try
             {
@@ -652,8 +592,7 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public async ValueTask<bool> GetAndRefreshAsync(string key, Stream destination, bool getData,
-            CancellationToken token = default)
+        public async ValueTask<bool> GetAndRefreshAsync(string key, Stream destination, bool getData, CancellationToken token = default)
         {
             try
             {
@@ -675,15 +614,8 @@ namespace CodeCargo.NatsDistributedCache
         /// <inheritdoc />
         public bool TryGet(string key, IBufferWriter<byte> destination)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (destination == null)
-            {
-                throw new ArgumentNullException(nameof(destination));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(destination);
 
             try
             {
@@ -703,18 +635,10 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public async ValueTask<bool> TryGetAsync(string key, IBufferWriter<byte> destination,
-            CancellationToken token = default)
+        public async ValueTask<bool> TryGetAsync(string key, IBufferWriter<byte> destination, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (destination == null)
-            {
-                throw new ArgumentNullException(nameof(destination));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(destination);
 
             token.ThrowIfCancellationRequested();
 
@@ -738,15 +662,8 @@ namespace CodeCargo.NatsDistributedCache
         /// <inheritdoc />
         public void Set(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(options);
 
             byte[] array;
 
@@ -763,18 +680,10 @@ namespace CodeCargo.NatsDistributedCache
         }
 
         /// <inheritdoc />
-        public async ValueTask SetAsync(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options,
-            CancellationToken token = default)
+        public async ValueTask SetAsync(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions options, CancellationToken token = default)
         {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(options);
 
             token.ThrowIfCancellationRequested();
 
