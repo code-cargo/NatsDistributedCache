@@ -155,9 +155,9 @@ namespace CodeCargo.NatsDistributedCache
                 throw new ArgumentNullException(nameof(options));
             }
 
-            var kvStore = GetKVStore().GetAwaiter().GetResult();
             var ttl = GetTTL(options);
             var entry = CreateCacheEntry(key, value, options);
+            var kvStore = GetKVStore().GetAwaiter().GetResult();
 
             try
             {
@@ -206,9 +206,9 @@ namespace CodeCargo.NatsDistributedCache
 
             token.ThrowIfCancellationRequested();
 
-            var kvStore = await GetKVStore().ConfigureAwait(false);
             var ttl = GetTTL(options);
             var entry = CreateCacheEntry(key, value, options);
+            var kvStore = await GetKVStore().ConfigureAwait(false);
 
             if (ttl.HasValue)
             {
