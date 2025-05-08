@@ -78,7 +78,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
 
         token.ThrowIfCancellationRequested();
 
-        var ttl = GetTTL(options);
+        var ttl = GetTtl(options);
         var entry = CreateCacheEntry(value, options);
         var kvStore = await GetKVStore().ConfigureAwait(false);
 
@@ -208,57 +208,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         _disposed = true;
     }
 
-    private string GetKeyPrefix(string key) => string.IsNullOrEmpty(_instanceName)
-            ? key
-            : _instanceName + ":" + key;
-
-    private async Task<NatsKVStore> GetKVStore()
-    {
-        if (_kvStore != null && !_disposed)
-        {
-            return _kvStore;
-        }
-
-        await _connectionLock.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_kvStore == null || _disposed)
-            {
-                if (_disposed)
-                {
-                    throw new ObjectDisposedException(nameof(NatsCache));
-                }
-
-                if (string.IsNullOrEmpty(_options.BucketName))
-                {
-                    throw new InvalidOperationException("BucketName is required and cannot be null or empty.");
-                }
-
-                var jsContext = _natsConnection.CreateJetStreamContext();
-                var kvContext = new NatsKVContext(jsContext);
-                _kvStore = (NatsKVStore)await kvContext.GetStoreAsync(_options.BucketName).ConfigureAwait(false);
-                if (_kvStore == null)
-                {
-                    throw new InvalidOperationException("Failed to create NATS KV store");
-                }
-
-                LogConnected();
-            }
-        }
-        catch (Exception ex)
-        {
-            LogException(ex);
-            throw;
-        }
-        finally
-        {
-            _connectionLock.Release();
-        }
-
-        return _kvStore;
-    }
-
-    private static TimeSpan? GetTTL(DistributedCacheEntryOptions options)
+    private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
         if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= DateTimeOffset.Now)
         {
@@ -310,6 +260,56 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         }
 
         return options.SlidingExpiration;
+    }
+
+    private string GetKeyPrefix(string key) => string.IsNullOrEmpty(_instanceName)
+            ? key
+            : _instanceName + ":" + key;
+
+    private async Task<NatsKVStore> GetKVStore()
+    {
+        if (_kvStore != null && !_disposed)
+        {
+            return _kvStore;
+        }
+
+        await _connectionLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_kvStore == null || _disposed)
+            {
+                if (_disposed)
+                {
+                    throw new ObjectDisposedException(nameof(NatsCache));
+                }
+
+                if (string.IsNullOrEmpty(_options.BucketName))
+                {
+                    throw new InvalidOperationException("BucketName is required and cannot be null or empty.");
+                }
+
+                var jsContext = _natsConnection.CreateJetStreamContext();
+                var kvContext = new NatsKVContext(jsContext);
+                _kvStore = (NatsKVStore)await kvContext.GetStoreAsync(_options.BucketName).ConfigureAwait(false);
+                if (_kvStore == null)
+                {
+                    throw new InvalidOperationException("Failed to create NATS KV store");
+                }
+
+                LogConnected();
+            }
+        }
+        catch (Exception ex)
+        {
+            LogException(ex);
+            throw;
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
+
+        return _kvStore;
     }
 
     private CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
