@@ -18,36 +18,6 @@ public class TimeExpirationAsyncUnitTests
         _mockNatsConnection = new Mock<INatsConnection>();
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            _mockNatsConnection.Object);
-    }
-
-    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
-    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
-    {
-        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
-        if (paramName is not null)
-        {
-            Assert.Equal(paramName, ex.ParamName);
-        }
-
-        if (message is not null)
-        {
-            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
-        }
-
-        if (actualValue is not null)
-        {
-            Assert.Equal(actualValue, ex.ActualValue);
-        }
-    }
-
     [Fact]
     public async Task AbsoluteExpirationInThePastThrowsAsync()
     {
@@ -132,5 +102,35 @@ public class TimeExpirationAsyncUnitTests
             nameof(DistributedCacheEntryOptions.SlidingExpiration),
             "The sliding expiration value must be positive.",
             TimeSpan.Zero);
+    }
+
+    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
+    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
+        if (paramName is not null)
+        {
+            Assert.Equal(paramName, ex.ParamName);
+        }
+
+        if (message is not null)
+        {
+            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
+        }
+
+        if (actualValue is not null)
+        {
+            Assert.Equal(actualValue, ex.ActualValue);
+        }
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            _mockNatsConnection.Object);
     }
 }

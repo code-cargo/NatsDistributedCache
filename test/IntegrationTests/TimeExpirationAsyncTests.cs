@@ -15,36 +15,6 @@ public class TimeExpirationAsyncTests : TestBase
     {
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
-    }
-
-    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
-    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
-    {
-        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
-        if (paramName is not null)
-        {
-            Assert.Equal(paramName, ex.ParamName);
-        }
-
-        if (message is not null)
-        {
-            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
-        }
-
-        if (actualValue is not null)
-        {
-            Assert.Equal(actualValue, ex.ActualValue);
-        }
-    }
-
     // AbsoluteExpirationInThePastThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
     [Fact]
     public async Task AbsoluteExpirationExpiresAsync()
@@ -176,5 +146,35 @@ public class TimeExpirationAsyncTests : TestBase
     {
         await cache.RemoveAsync(caller);
         return caller;
+    }
+
+    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
+    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
+        if (paramName is not null)
+        {
+            Assert.Equal(paramName, ex.ParamName);
+        }
+
+        if (message is not null)
+        {
+            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
+        }
+
+        if (actualValue is not null)
+        {
+            Assert.Equal(actualValue, ex.ActualValue);
+        }
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
     }
 }

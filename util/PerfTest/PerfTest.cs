@@ -35,6 +35,27 @@ public class PerfTest
         await Task.WhenAll(printTask, watchTask);
     }
 
+    private static Task StartWatchTask(CancellationToken ct) =>
+        Task.Run(
+            async () =>
+            {
+                try
+                {
+                    while (!ct.IsCancellationRequested)
+                    {
+                        // TODO: Implement watching for cache operations and updating stats
+
+                        // Wait before checking again
+                        await Task.Delay(100, ct);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore cancellation exceptions
+                }
+            },
+            ct);
+
     private Task StartPrintTask(CancellationToken ct) =>
         Task.Run(
             async () =>
@@ -55,27 +76,6 @@ public class PerfTest
 
                         // Wait before printing again
                         await Task.Delay(TimeSpan.FromSeconds(1), ct);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation exceptions
-                }
-            },
-            ct);
-
-    private static Task StartWatchTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
-            {
-                try
-                {
-                    while (!ct.IsCancellationRequested)
-                    {
-                        // TODO: Implement watching for cache operations and updating stats
-
-                        // Wait before checking again
-                        await Task.Delay(100, ct);
                     }
                 }
                 catch (OperationCanceledException)

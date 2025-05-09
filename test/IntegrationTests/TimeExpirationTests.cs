@@ -16,16 +16,6 @@ public class TimeExpirationTests : TestBase
     {
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
-    }
-
     // AbsoluteExpirationInThePastThrows test moved to UnitTests/TimeExpirationUnitTests.cs
     [Fact]
     public void AbsoluteExpirationExpires()
@@ -157,5 +147,15 @@ public class TimeExpirationTests : TestBase
     {
         cache.Remove(caller);
         return caller;
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
     }
 }

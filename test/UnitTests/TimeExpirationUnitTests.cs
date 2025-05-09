@@ -21,16 +21,6 @@ public class TimeExpirationUnitTests
         _mockNatsConnection.SetupGet(m => m.Connection).Returns(connection);
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            _mockNatsConnection.Object);
-    }
-
     [Fact]
     public void AbsoluteExpirationInThePastThrows()
     {
@@ -115,5 +105,15 @@ public class TimeExpirationUnitTests
             nameof(DistributedCacheEntryOptions.SlidingExpiration),
             "The sliding expiration value must be positive.",
             TimeSpan.Zero);
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            _mockNatsConnection.Object);
     }
 }

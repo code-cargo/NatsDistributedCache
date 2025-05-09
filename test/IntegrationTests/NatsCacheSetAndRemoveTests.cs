@@ -17,16 +17,6 @@ public class NatsCacheSetAndRemoveTests : TestBase
     {
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
-    }
-
     [Fact]
     public void GetMissingKeyReturnsNull()
     {
@@ -114,6 +104,7 @@ public class NatsCacheSetAndRemoveTests : TestBase
 
         // check raw bytes
         var raw = cache.Get(key);
+        Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
@@ -137,6 +128,7 @@ public class NatsCacheSetAndRemoveTests : TestBase
 
         // check raw bytes
         var raw = await cache.GetAsync(key);
+        Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
@@ -150,4 +142,14 @@ public class NatsCacheSetAndRemoveTests : TestBase
     private static string Hex(string value) => Hex(Encoding.UTF8.GetBytes(value));
 
     private static string Me([CallerMemberName] string caller = "") => caller;
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
+    }
 }
