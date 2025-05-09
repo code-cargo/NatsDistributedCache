@@ -1,8 +1,6 @@
 using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Client.KeyValueStore;
-using NATS.Net;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
@@ -21,11 +19,7 @@ public abstract class TestBase : IAsyncDisposable
     {
         // Get the test output helper from the current test context
         var testContext = TestContext.Current;
-        var output = testContext.TestOutputHelper;
-        if (output == null)
-        {
-            throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
-        }
+        var output = testContext.TestOutputHelper ?? throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
 
         // Create a service collection and configure logging
         var services = new ServiceCollection();

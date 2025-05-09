@@ -1,13 +1,8 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.UnitTests;
 
@@ -101,6 +96,10 @@ public class CacheServiceExtensionsUnitTests
             options.BucketName = "cache";
             wasInvoked = true;
         });
+
+        // Build service provider and resolve options to trigger the setup action
+        var sp = services.BuildServiceProvider();
+        _ = sp.GetRequiredService<IDistributedCache>();
 
         // Assert
         Assert.True(wasInvoked);

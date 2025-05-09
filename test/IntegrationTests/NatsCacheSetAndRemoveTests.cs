@@ -1,11 +1,6 @@
-using System;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
-using CodeCargo.NatsDistributedCache.IntegrationTests;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
@@ -15,16 +10,6 @@ public class NatsCacheSetAndRemoveTests : TestBase
     public NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture)
         : base(fixture)
     {
-    }
-
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
     }
 
     [Fact]
@@ -114,6 +99,7 @@ public class NatsCacheSetAndRemoveTests : TestBase
 
         // check raw bytes
         var raw = cache.Get(key);
+        Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
@@ -137,6 +123,7 @@ public class NatsCacheSetAndRemoveTests : TestBase
 
         // check raw bytes
         var raw = await cache.GetAsync(key);
+        Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
@@ -150,4 +137,14 @@ public class NatsCacheSetAndRemoveTests : TestBase
     private static string Hex(string value) => Hex(Encoding.UTF8.GetBytes(value));
 
     private static string Me([CallerMemberName] string caller = "") => caller;
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
+    }
 }

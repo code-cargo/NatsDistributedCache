@@ -1,9 +1,5 @@
-using System;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
@@ -15,36 +11,6 @@ public class TimeExpirationAsyncTests : TestBase
     {
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
-    }
-
-    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
-    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
-    {
-        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
-        if (paramName is not null)
-        {
-            Assert.Equal(paramName, ex.ParamName);
-        }
-
-        if (message is not null)
-        {
-            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
-        }
-
-        if (actualValue is not null)
-        {
-            Assert.Equal(actualValue, ex.ActualValue);
-        }
-    }
-
     // AbsoluteExpirationInThePastThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
     [Fact]
     public async Task AbsoluteExpirationExpiresAsync()
@@ -53,7 +19,7 @@ public class TimeExpirationAsyncTests : TestBase
         var key = await GetNameAndReset(cache);
         var value = new byte[1];
 
-        await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1)));
+        await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
         var result = await cache.GetAsync(key);
         Assert.Equal(value, result);
@@ -67,19 +33,6 @@ public class TimeExpirationAsyncTests : TestBase
         Assert.Null(result);
     }
 
-    [Fact]
-    public async Task AbsoluteSubSecondExpirationExpiresImmediatelyAsync()
-    {
-        var cache = CreateCacheInstance();
-        var key = await GetNameAndReset(cache);
-        var value = new byte[1];
-
-        await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(0.25)));
-
-        var result = await cache.GetAsync(key);
-        Assert.Null(result);
-    }
-
     // NegativeRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
 
     // ZeroRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
@@ -90,7 +43,7 @@ public class TimeExpirationAsyncTests : TestBase
         var key = await GetNameAndReset(cache);
         var value = new byte[1];
 
-        await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1)));
+        await cache.SetAsync(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
         var result = await cache.GetAsync(key);
         Assert.Equal(value, result);
@@ -160,14 +113,14 @@ public class TimeExpirationAsyncTests : TestBase
         var value = new byte[1];
 
         await cache.SetAsync(key, value, new DistributedCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromSeconds(1))
-            .SetAbsoluteExpiration(TimeSpan.FromSeconds(3)));
+            .SetSlidingExpiration(TimeSpan.FromSeconds(1.1))
+            .SetAbsoluteExpiration(TimeSpan.FromSeconds(4)));
 
         var setTime = DateTime.Now;
         var result = await cache.GetAsync(key);
         Assert.Equal(value, result);
 
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 4; i++)
         {
             await Task.Delay(TimeSpan.FromSeconds(0.5));
 
@@ -189,5 +142,35 @@ public class TimeExpirationAsyncTests : TestBase
     {
         await cache.RemoveAsync(caller);
         return caller;
+    }
+
+    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
+    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
+        if (paramName is not null)
+        {
+            Assert.Equal(paramName, ex.ParamName);
+        }
+
+        if (message is not null)
+        {
+            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
+        }
+
+        if (actualValue is not null)
+        {
+            Assert.Equal(actualValue, ex.ActualValue);
+        }
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
     }
 }

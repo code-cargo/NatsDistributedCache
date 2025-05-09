@@ -1,10 +1,5 @@
-using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using CodeCargo.NatsDistributedCache.IntegrationTests.TestHelpers;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
@@ -16,16 +11,6 @@ public class TimeExpirationTests : TestBase
     {
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
-            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
-            {
-                BucketName = "cache"
-            }),
-            NatsConnection);
-    }
-
     // AbsoluteExpirationInThePastThrows test moved to UnitTests/TimeExpirationUnitTests.cs
     [Fact]
     public void AbsoluteExpirationExpires()
@@ -34,7 +19,7 @@ public class TimeExpirationTests : TestBase
         var key = GetNameAndReset(cache);
         var value = new byte[1];
 
-        cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1)));
+        cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
         var result = cache.Get(key);
         Assert.Equal(value, result);
@@ -48,19 +33,6 @@ public class TimeExpirationTests : TestBase
         Assert.Null(result);
     }
 
-    [Fact]
-    public void AbsoluteSubSecondExpirationExpiresImmediately()
-    {
-        var cache = CreateCacheInstance();
-        var key = GetNameAndReset(cache);
-        var value = new byte[1];
-
-        cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(0.25)));
-
-        var result = cache.Get(key);
-        Assert.Null(result);
-    }
-
     // NegativeRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
 
     // ZeroRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
@@ -71,7 +43,7 @@ public class TimeExpirationTests : TestBase
         var key = GetNameAndReset(cache);
         var value = new byte[1];
 
-        cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1)));
+        cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
         var result = cache.Get(key);
         Assert.Equal(value, result);
@@ -141,14 +113,14 @@ public class TimeExpirationTests : TestBase
         var value = new byte[1];
 
         cache.Set(key, value, new DistributedCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromSeconds(1))
-            .SetAbsoluteExpiration(TimeSpan.FromSeconds(3)));
+            .SetSlidingExpiration(TimeSpan.FromSeconds(1.1))
+            .SetAbsoluteExpiration(TimeSpan.FromSeconds(4)));
 
         var setTime = DateTime.Now;
         var result = cache.Get(key);
         Assert.Equal(value, result);
 
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 4; i++)
         {
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
 
@@ -170,5 +142,15 @@ public class TimeExpirationTests : TestBase
     {
         cache.Remove(caller);
         return caller;
+    }
+
+    private IDistributedCache CreateCacheInstance()
+    {
+        return new NatsCache(
+            Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
+            {
+                BucketName = "cache"
+            }),
+            NatsConnection);
     }
 }

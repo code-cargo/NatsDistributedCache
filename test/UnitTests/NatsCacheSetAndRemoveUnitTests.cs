@@ -1,11 +1,6 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.UnitTests;
 
@@ -18,6 +13,16 @@ public class NatsCacheSetAndRemoveUnitTests
         _mockNatsConnection = new Mock<INatsConnection>();
     }
 
+    [Fact]
+    public void SetNullValueThrows()
+    {
+        var cache = CreateCacheInstance();
+        byte[] value = null!;
+        var key = "myKey";
+
+        Assert.Throws<ArgumentNullException>(() => cache.Set(key, value));
+    }
+
     private IDistributedCache CreateCacheInstance()
     {
         return new NatsCache(
@@ -26,15 +31,5 @@ public class NatsCacheSetAndRemoveUnitTests
                 BucketName = "cache"
             }),
             _mockNatsConnection.Object);
-    }
-
-    [Fact]
-    public void SetNullValueThrows()
-    {
-        var cache = CreateCacheInstance();
-        byte[] value = null;
-        var key = "myKey";
-
-        Assert.Throws<ArgumentNullException>(() => cache.Set(key, value));
     }
 }
