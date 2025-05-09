@@ -83,8 +83,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
 
         try
         {
-            await kvStore.PutAsync(GetKeyPrefix(key), entry, ttl ?? default, _cacheEntrySerializer, token)
-                .ConfigureAwait(false);
+            await kvStore.PutAsync(GetKeyPrefix(key), entry, ttl ?? default, _cacheEntrySerializer, token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -103,17 +102,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         ArgumentNullException.ThrowIfNull(options);
         token.ThrowIfCancellationRequested();
 
-        byte[] array;
-
-        if (value.IsSingleSegment)
-        {
-            array = value.First.ToArray();
-        }
-        else
-        {
-            array = value.ToArray();
-        }
-
+        var array = value.IsSingleSegment ? value.First.ToArray() : value.ToArray();
         await SetAsync(key, array, options, token).ConfigureAwait(false);
     }
 
@@ -123,7 +112,13 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     /// <inheritdoc />
     public async Task RemoveAsync(string key, CancellationToken token = default) => await RemoveAsync(key, null, token).ConfigureAwait(false);
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Removes the value with the given key.
+    /// </summary>
+    /// <param name="key">A string identifying the requested value.</param>
+    /// <param name="natsKVDeleteOpts">Nats KV delete options</param>
+    /// <param name="token">Optional. The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
+    /// <returns>The <see cref="Task"/> that represents the asynchronous operation.</returns>
     public async Task RemoveAsync(string key, NatsKVDeleteOpts? natsKVDeleteOpts = null, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -141,6 +136,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         token.ThrowIfCancellationRequested();
+
         await GetAndRefreshAsync(key, getData: false, retry: true, token: token).ConfigureAwait(false);
     }
 
@@ -152,6 +148,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         token.ThrowIfCancellationRequested();
+
         return await GetAndRefreshAsync(key, getData: true, retry: true, token: token).ConfigureAwait(false);
     }
 
@@ -195,7 +192,10 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     protected virtual void Dispose(bool disposing)
     {
         if (_disposed)
+        {
             return;
+        }
+
         if (disposing)
         {
             // Dispose managed state (managed objects)
@@ -240,25 +240,22 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
             absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
         }
 
-        if (absoluteExpiration.HasValue)
+        if (!absoluteExpiration.HasValue)
         {
-            var ttl = absoluteExpiration.Value - DateTimeOffset.Now;
-            if (ttl.TotalMilliseconds <= 0)
-            {
-                // Value is in the past, remove it
-                return TimeSpan.Zero;
-            }
-
-            // If there's also a sliding expiration, use the minimum of the two
-            if (options.SlidingExpiration.HasValue)
-            {
-                return TimeSpan.FromTicks(Math.Min(ttl.Ticks, options.SlidingExpiration.Value.Ticks));
-            }
-
-            return ttl;
+            return options.SlidingExpiration;
         }
 
-        return options.SlidingExpiration;
+        var ttl = absoluteExpiration.Value - DateTimeOffset.Now;
+        if (ttl.TotalMilliseconds <= 0)
+        {
+            // Value is in the past, remove it
+            return TimeSpan.Zero;
+        }
+
+        // If there's also a sliding expiration, use the minimum of the two
+        return options.SlidingExpiration.HasValue
+            ? TimeSpan.FromTicks(Math.Min(ttl.Ticks, options.SlidingExpiration.Value.Ticks))
+            : ttl;
     }
 
     private static CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
@@ -333,12 +330,12 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     private async Task<byte[]?> GetAndRefreshAsync(string key, bool getData, bool retry, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
+
         var kvStore = await GetKVStore().ConfigureAwait(false);
         var prefixedKey = GetKeyPrefix(key);
         try
         {
-            var natsResult = await kvStore.TryGetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
-                .ConfigureAwait(false);
+            var natsResult = await kvStore.TryGetEntryAsync(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token).ConfigureAwait(false);
             if (!natsResult.Success)
             {
                 return null;
@@ -413,8 +410,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
             // Use optimistic concurrency control with the last revision
             try
             {
-                await kvStore.UpdateAsync(key, kvEntry.Value, kvEntry.Revision, ttl, serializer: _cacheEntrySerializer, cancellationToken: token)
-                    .ConfigureAwait(false);
+                await kvStore.UpdateAsync(key, kvEntry.Value, kvEntry.Revision, ttl, serializer: _cacheEntrySerializer, cancellationToken: token).ConfigureAwait(false);
             }
             catch (NatsKVWrongLastRevisionException)
             {

@@ -1,10 +1,5 @@
-using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using CodeCargo.NatsDistributedCache.IntegrationTests.TestHelpers;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 

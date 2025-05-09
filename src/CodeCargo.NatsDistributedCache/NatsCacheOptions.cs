@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using Microsoft.Extensions.Options;
 
 namespace CodeCargo.NatsDistributedCache
@@ -22,9 +21,6 @@ namespace CodeCargo.NatsDistributedCache
         /// </summary>
         public string? InstanceName { get; set; }
 
-        NatsCacheOptions IOptions<NatsCacheOptions>.Value
-        {
-            get { return this; }
-        }
+        NatsCacheOptions IOptions<NatsCacheOptions>.Value => this;
     }
 }

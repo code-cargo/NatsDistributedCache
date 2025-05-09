@@ -1,11 +1,6 @@
-using System;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
-using Xunit;
 
 namespace CodeCargo.NatsDistributedCache.UnitTests;
 
