@@ -5,3 +5,9 @@
 # User settings
 *.DotSettings.user
 *.sln.DotSettings
+
+# JetBrains
+.idea
+
+# VSCode
+.vscode
