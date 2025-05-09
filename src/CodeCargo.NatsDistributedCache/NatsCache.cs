@@ -75,7 +75,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(options);
-
         token.ThrowIfCancellationRequested();
 
         var ttl = GetTtl(options);
@@ -102,7 +101,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(options);
-
         token.ThrowIfCancellationRequested();
 
         byte[] array;
@@ -120,17 +118,19 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     }
 
     /// <inheritdoc />
-    public void Remove(string key) => RemoveAsync(key).GetAwaiter().GetResult();
+    public void Remove(string key) => RemoveAsync(key, null, default).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public async Task RemoveAsync(string key, CancellationToken token = default)
+    public async Task RemoveAsync(string key, CancellationToken token = default) => await RemoveAsync(key, null, token).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task RemoveAsync(string key, NatsKVDeleteOpts? natsKVDeleteOpts = null, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(key);
-
         token.ThrowIfCancellationRequested();
 
         var kvStore = await GetKVStore().ConfigureAwait(false);
-        await kvStore.DeleteAsync(GetKeyPrefix(key), cancellationToken: token).ConfigureAwait(false);
+        await kvStore.DeleteAsync(GetKeyPrefix(key), natsKVDeleteOpts, cancellationToken: token).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -141,7 +141,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         token.ThrowIfCancellationRequested();
-        await GetAndRefreshAsync(key, getData: false, token: token).ConfigureAwait(false);
+        await GetAndRefreshAsync(key, getData: false, retry: true, token: token).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -152,7 +152,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         token.ThrowIfCancellationRequested();
-        return await GetAndRefreshAsync(key, getData: true, token: token).ConfigureAwait(false);
+        return await GetAndRefreshAsync(key, getData: true, retry: true, token: token).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -163,7 +163,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(destination);
-
         token.ThrowIfCancellationRequested();
 
         try
@@ -262,6 +261,29 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         return options.SlidingExpiration;
     }
 
+    private static CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
+    {
+        var absoluteExpiration = options.AbsoluteExpiration;
+        if (options.AbsoluteExpirationRelativeToNow.HasValue)
+        {
+            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
+        }
+
+        var cacheEntry = new CacheEntry { Data = value };
+
+        if (absoluteExpiration.HasValue)
+        {
+            cacheEntry.AbsoluteExpiration = absoluteExpiration.Value.ToUnixTimeMilliseconds().ToString();
+        }
+
+        if (options.SlidingExpiration.HasValue)
+        {
+            cacheEntry.SlidingExpiration = options.SlidingExpiration.Value.TotalMilliseconds.ToString();
+        }
+
+        return cacheEntry;
+    }
+
     private string GetKeyPrefix(string key) => string.IsNullOrEmpty(_instanceName)
             ? key
             : _instanceName + ":" + key;
@@ -278,11 +300,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         {
             if (_kvStore == null || _disposed)
             {
-                if (_disposed)
-                {
-                    throw new ObjectDisposedException(nameof(NatsCache));
-                }
-
+                ObjectDisposedException.ThrowIf(_disposed, this);
                 if (string.IsNullOrEmpty(_options.BucketName))
                 {
                     throw new InvalidOperationException("BucketName is required and cannot be null or empty.");
@@ -312,30 +330,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         return _kvStore;
     }
 
-    private CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
-    {
-        var absoluteExpiration = options.AbsoluteExpiration;
-        if (options.AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
-        }
-
-        var cacheEntry = new CacheEntry { Data = value };
-
-        if (absoluteExpiration.HasValue)
-        {
-            cacheEntry.AbsoluteExpiration = absoluteExpiration.Value.ToUnixTimeMilliseconds().ToString();
-        }
-
-        if (options.SlidingExpiration.HasValue)
-        {
-            cacheEntry.SlidingExpiration = options.SlidingExpiration.Value.TotalMilliseconds.ToString();
-        }
-
-        return cacheEntry;
-    }
-
-    private async Task<byte[]?> GetAndRefreshAsync(string key, bool getData, CancellationToken token = default)
+    private async Task<byte[]?> GetAndRefreshAsync(string key, bool getData, bool retry, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
         var kvStore = await GetKVStore().ConfigureAwait(false);
@@ -350,73 +345,33 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
             }
 
             var kvEntry = natsResult.Value;
-
-            // Check if the value is null
             if (kvEntry.Value == null)
             {
                 return null;
             }
 
             // Check absolute expiration
-            if (kvEntry.Value.AbsoluteExpiration != null)
+            if (kvEntry.Value.AbsoluteExpiration != null
+                && DateTimeOffset.Now > DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(kvEntry.Value.AbsoluteExpiration)))
             {
-                var absoluteExpiration =
-                    DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(kvEntry.Value.AbsoluteExpiration));
-                if (absoluteExpiration <= DateTimeOffset.Now)
-                {
-                    // NatsKVWrongLastRevisionException is caught below
-                    await kvStore.DeleteAsync(
-                            prefixedKey,
-                            new NatsKVDeleteOpts { Revision = kvEntry.Revision },
-                            cancellationToken: token)
-                        .ConfigureAwait(false);
-
-                    return null;
-                }
+                // NatsKVWrongLastRevisionException is caught below
+                var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
+                await RemoveAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                return null;
             }
 
-            // Refresh if sliding expiration exists
-            if (kvEntry.Value.SlidingExpiration != null)
-            {
-                var slidingExpirationMilliseconds = long.Parse(kvEntry.Value.SlidingExpiration);
-                var slidingExpiration = TimeSpan.FromMilliseconds(slidingExpirationMilliseconds);
-
-                if (slidingExpiration > TimeSpan.Zero)
-                {
-                    await UpdateEntryExpirationAsync(kvStore, prefixedKey, kvEntry, token)
-                        .ConfigureAwait(false);
-                }
-            }
-
+            await UpdateEntryExpirationAsync(kvStore, prefixedKey, kvEntry, token).ConfigureAwait(false);
             return getData ? kvEntry.Value.Data : null;
         }
-        catch (NatsKVWrongLastRevisionException)
+        catch (NatsKVWrongLastRevisionException ex)
         {
             // Optimistic concurrency control failed, someone else updated it
-            // That's fine, we just retry the get operation
             LogUpdateFailed(key);
-
-            // Try once more to get the latest value
-            try
+            if (retry)
             {
-                var natsResult = await kvStore.TryGetEntryAsync<CacheEntry>(prefixedKey, serializer: _cacheEntrySerializer, cancellationToken: token)
-                    .ConfigureAwait(false);
-                if (!natsResult.Success)
-                {
-                    return null;
-                }
-
-                var kvEntry = natsResult.Value;
-
-                // Check if the value is null
-                if (kvEntry.Value == null)
-                {
-                    return null;
-                }
-
-                return getData ? kvEntry.Value.Data : null;
+                return await GetAndRefreshAsync(key, getData, retry: false, token).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            else
             {
                 LogException(ex);
                 return null;
@@ -431,35 +386,34 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
 
     private async Task UpdateEntryExpirationAsync(NatsKVStore kvStore, string key, NatsKVEntry<CacheEntry> kvEntry, CancellationToken token)
     {
-        // Calculate new TTL based on sliding expiration
-        TimeSpan? ttl = null;
+        if (kvEntry.Value?.SlidingExpiration == null)
+        {
+            return;
+        }
 
         // If we have a sliding expiration, use it as the TTL
-        if (kvEntry.Value?.SlidingExpiration != null)
+        var ttl = TimeSpan.FromMilliseconds(long.Parse(kvEntry.Value.SlidingExpiration));
+
+        // If we also have an absolute expiration, make sure we don't exceed it
+        if (kvEntry.Value.AbsoluteExpiration != null)
         {
-            ttl = TimeSpan.FromMilliseconds(long.Parse(kvEntry.Value.SlidingExpiration));
+            var absoluteExpiration =
+                DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(kvEntry.Value.AbsoluteExpiration));
+            var remainingTime = absoluteExpiration - DateTimeOffset.Now;
 
-            // If we also have an absolute expiration, make sure we don't exceed it
-            if (kvEntry.Value.AbsoluteExpiration != null)
+            // Use the minimum of sliding window or remaining absolute time
+            if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
             {
-                var absoluteExpiration =
-                    DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(kvEntry.Value.AbsoluteExpiration));
-                var remainingTime = absoluteExpiration - DateTimeOffset.Now;
-
-                // Use the minimum of sliding window or remaining absolute time
-                if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
-                {
-                    ttl = remainingTime;
-                }
+                ttl = remainingTime;
             }
         }
 
-        if (ttl.HasValue && ttl.Value > TimeSpan.Zero)
+        if (ttl > TimeSpan.Zero)
         {
             // Use optimistic concurrency control with the last revision
             try
             {
-                await kvStore.UpdateAsync(key, kvEntry.Value, kvEntry.Revision, ttl.Value, serializer: _cacheEntrySerializer, cancellationToken: token)
+                await kvStore.UpdateAsync(key, kvEntry.Value, kvEntry.Revision, ttl, serializer: _cacheEntrySerializer, cancellationToken: token)
                     .ConfigureAwait(false);
             }
             catch (NatsKVWrongLastRevisionException)
