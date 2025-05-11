@@ -1,9 +1,7 @@
 using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
-using NATS.Client.KeyValueStore;
 using NATS.Net;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;

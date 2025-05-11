@@ -1,6 +1,3 @@
-// Licensed to the .NET Foundation under one or more agreements.
-// The .NET Foundation licenses this file to you under the MIT license.
-
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -21,7 +18,9 @@ namespace CodeCargo.NatsDistributedCache
         /// <param name="setupAction">An <see cref="Action{NatsCacheOptions}"/> to configure the provided
         /// <see cref="NatsCacheOptions"/>.</param>
         /// <returns>The <see cref="IServiceCollection"/> so that additional calls can be chained.</returns>
-        public static IServiceCollection AddNatsDistributedCache(this IServiceCollection services, Action<NatsCacheOptions> setupAction)
+        public static IServiceCollection AddNatsDistributedCache(
+            this IServiceCollection services,
+            Action<NatsCacheOptions> setupAction)
         {
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(setupAction);
@@ -32,14 +31,15 @@ namespace CodeCargo.NatsDistributedCache
             {
                 var optionsAccessor = serviceProvider.GetRequiredService<IOptions<NatsCacheOptions>>();
                 var logger = serviceProvider.GetService<ILogger<NatsCache>>();
-                var natsConnection = serviceProvider.GetRequiredService<INatsConnection>();
 
-                if (logger != null)
-                {
-                    return new NatsCacheImpl(optionsAccessor, logger, serviceProvider, natsConnection);
-                }
+                var serviceKey = optionsAccessor.Value.ConnectionServiceKey;
+                var natsConnection = string.IsNullOrEmpty(serviceKey)
+                    ? serviceProvider.GetRequiredService<INatsConnection>()
+                    : serviceProvider.GetRequiredKeyedService<INatsConnection>(serviceKey);
 
-                return new NatsCacheImpl(optionsAccessor, serviceProvider, natsConnection);
+                return logger != null
+                    ? new NatsCacheImpl(optionsAccessor, logger, serviceProvider, natsConnection)
+                    : new NatsCacheImpl(optionsAccessor, serviceProvider, natsConnection);
             }));
 
             return services;

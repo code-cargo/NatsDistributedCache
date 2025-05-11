@@ -4,14 +4,8 @@ using Microsoft.Extensions.Caching.Distributed;
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 [Collection(NatsCollection.Name)]
-public class TimeExpirationTests : TestBase
+public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
-    public TimeExpirationTests(NatsIntegrationFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    // AbsoluteExpirationInThePastThrows test moved to UnitTests/TimeExpirationUnitTests.cs
     [Fact]
     public void AbsoluteExpirationExpires()
     {
@@ -33,9 +27,6 @@ public class TimeExpirationTests : TestBase
         Assert.Null(result);
     }
 
-    // NegativeRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
-
-    // ZeroRelativeExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
     [Fact]
     public void RelativeExpirationExpires()
     {
@@ -57,9 +48,6 @@ public class TimeExpirationTests : TestBase
         Assert.Null(result);
     }
 
-    // NegativeSlidingExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
-
-    // ZeroSlidingExpirationThrows test moved to UnitTests/TimeExpirationUnitTests.cs
     [Fact]
     public void SlidingExpirationExpiresIfNotAccessed()
     {
@@ -144,13 +132,11 @@ public class TimeExpirationTests : TestBase
         return caller;
     }
 
-    private IDistributedCache CreateCacheInstance()
-    {
-        return new NatsCache(
+    private IDistributedCache CreateCacheInstance() =>
+        new NatsCache(
             Microsoft.Extensions.Options.Options.Create(new NatsCacheOptions
             {
                 BucketName = "cache"
             }),
             NatsConnection);
-    }
 }

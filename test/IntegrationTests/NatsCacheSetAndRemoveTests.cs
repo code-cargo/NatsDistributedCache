@@ -5,13 +5,8 @@ using Microsoft.Extensions.Caching.Distributed;
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 [Collection(NatsCollection.Name)]
-public class NatsCacheSetAndRemoveTests : TestBase
+public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
-    public NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture)
-        : base(fixture)
-    {
-    }
-
     [Fact]
     public void GetMissingKeyReturnsNull()
     {

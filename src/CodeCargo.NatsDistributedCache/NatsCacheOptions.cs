@@ -1,6 +1,3 @@
-// Licensed to the .NET Foundation under one or more agreements.
-// The .NET Foundation licenses this file to you under the MIT license.
-
 using Microsoft.Extensions.Options;
 
 namespace CodeCargo.NatsDistributedCache
@@ -16,10 +13,21 @@ namespace CodeCargo.NatsDistributedCache
         public string? BucketName { get; set; }
 
         /// <summary>
-        /// The NATS instance name. Allows partitioning a single backend cache for use with multiple apps/services.
-        /// If set, the cache keys are prefixed with this value.
+        /// If set, all cache keys are prefixed with this value followed by a period.
+        /// Allows partitioning a single backend cache for use with multiple apps/services.
         /// </summary>
-        public string? InstanceName { get; set; }
+        public string? CacheKeyPrefix { get; set; }
+
+        /// <summary>
+        /// If set, attempt to retrieve the INatsConnection as a keyed service from the service provider.
+        /// </summary>
+        public string? ConnectionServiceKey { get; set; }
+
+        /// <summary>
+        /// When true (the default) register a <see cref="NatsHybridCacheSerializerFactory"/> as an
+        /// IHybridCacheSerializerFactory that uses the NATS Connection's Serializer Registry.
+        /// </summary>
+        public bool RegisterHybridCacheSerializerFactory { get; set; } = true;
 
         NatsCacheOptions IOptions<NatsCacheOptions>.Value => this;
     }

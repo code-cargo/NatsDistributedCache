@@ -4,14 +4,8 @@ using Microsoft.Extensions.Caching.Distributed;
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 [Collection(NatsCollection.Name)]
-public class TimeExpirationAsyncTests : TestBase
+public class TimeExpirationAsyncTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
-    public TimeExpirationAsyncTests(NatsIntegrationFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    // AbsoluteExpirationInThePastThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
     [Fact]
     public async Task AbsoluteExpirationExpiresAsync()
     {
@@ -33,9 +27,6 @@ public class TimeExpirationAsyncTests : TestBase
         Assert.Null(result);
     }
 
-    // NegativeRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
-
-    // ZeroRelativeExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
     [Fact]
     public async Task RelativeExpirationExpiresAsync()
     {
@@ -57,9 +48,6 @@ public class TimeExpirationAsyncTests : TestBase
         Assert.Null(result);
     }
 
-    // NegativeSlidingExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
-
-    // ZeroSlidingExpirationThrowsAsync test moved to UnitTests/TimeExpirationAsyncUnitTests.cs
     [Fact]
     public async Task SlidingExpirationExpiresIfNotAccessedAsync()
     {
@@ -142,26 +130,6 @@ public class TimeExpirationAsyncTests : TestBase
     {
         await cache.RemoveAsync(caller);
         return caller;
-    }
-
-    // async twin to ExceptionAssert.ThrowsArgumentOutOfRange
-    private static async Task ThrowsArgumentOutOfRangeAsync(Func<Task> test, string paramName, string message, object actualValue)
-    {
-        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(test);
-        if (paramName is not null)
-        {
-            Assert.Equal(paramName, ex.ParamName);
-        }
-
-        if (message is not null)
-        {
-            Assert.StartsWith(message, ex.Message); // can have "\r\nParameter name:" etc
-        }
-
-        if (actualValue is not null)
-        {
-            Assert.Equal(actualValue, ex.ActualValue);
-        }
     }
 
     private IDistributedCache CreateCacheInstance()

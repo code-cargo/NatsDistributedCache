@@ -64,13 +64,13 @@ public class CacheServiceExtensionsUnitTests
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(_mockNatsConnection.Object);
-        var expectedInstanceName = "TestInstance";
+        var expectedNamespace = "TestNamespace";
 
         // Act
         services.AddNatsDistributedCache(options =>
         {
             options.BucketName = "cache";
-            options.InstanceName = expectedInstanceName;
+            options.CacheKeyPrefix = expectedNamespace;
         });
 
         // Build the provider to verify options
@@ -78,7 +78,7 @@ public class CacheServiceExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<NatsCacheOptions>>().Value;
 
         // Assert
-        Assert.Equal(expectedInstanceName, options.InstanceName);
+        Assert.Equal(expectedNamespace, options.CacheKeyPrefix);
         Assert.Equal("cache", options.BucketName);
     }
 
