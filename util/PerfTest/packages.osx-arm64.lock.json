@@ -958,7 +958,8 @@
         "dependencies": {
           "Aspire.Dashboard.Sdk.osx-arm64": "[9.2.1, )",
           "Aspire.Hosting.AppHost": "[9.2.1, )",
-          "Aspire.Hosting.Orchestration.osx-arm64": "[9.2.1, )"
+          "Aspire.Hosting.Orchestration.osx-arm64": "[9.2.1, )",
+          "CodeCargo.NatsDistributedCache": "[1.0.0, )"
         }
       },
       "testutils": {

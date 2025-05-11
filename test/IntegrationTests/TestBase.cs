@@ -1,13 +1,18 @@
 using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.JetStream.Models;
+using NATS.Client.KeyValueStore;
+using NATS.Net;
 
 namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 /// <summary>
 /// Base class for NATS integration tests that provides test output logging and fixture access
 /// </summary>
-public abstract class TestBase : IAsyncDisposable
+[Collection(NatsCollection.Name)]
+public abstract class TestBase : IAsyncLifetime
 {
     private int _disposed;
 
@@ -19,7 +24,8 @@ public abstract class TestBase : IAsyncDisposable
     {
         // Get the test output helper from the current test context
         var testContext = TestContext.Current;
-        var output = testContext.TestOutputHelper ?? throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
+        var output = testContext.TestOutputHelper ??
+                     throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
 
         // Create a service collection and configure logging
         var services = new ServiceCollection();
@@ -47,7 +53,15 @@ public abstract class TestBase : IAsyncDisposable
     protected INatsConnection NatsConnection => ServiceProvider.GetRequiredService<INatsConnection>();
 
     /// <summary>
-    /// Cleanup after the test
+    /// Purge stream before test run
+    /// </summary>
+    public virtual async ValueTask InitializeAsync() =>
+        await NatsConnection
+            .CreateJetStreamContext()
+            .PurgeStreamAsync("KV_cache", new StreamPurgeRequest(), TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// Dispose
     /// </summary>
     public virtual async ValueTask DisposeAsync()
     {
