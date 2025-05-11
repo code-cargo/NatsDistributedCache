@@ -1,6 +1,5 @@
 using Aspire.Hosting;
 using CodeCargo.NatsDistributedCache.TestUtils;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.KeyValueStore;

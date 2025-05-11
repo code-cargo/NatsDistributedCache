@@ -1,4 +1,6 @@
+using System.Runtime.CompilerServices;
 using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
@@ -23,7 +25,8 @@ public abstract class TestBase : IAsyncLifetime
         // Get the test output helper from the current test context
         var testContext = TestContext.Current;
         var output = testContext.TestOutputHelper ??
-                     throw new InvalidOperationException("TestOutputHelper was not available in the current test context");
+                     throw new InvalidOperationException(
+                         "TestOutputHelper was not available in the current test context");
 
         // Create a service collection and configure logging
         var services = new ServiceCollection();
@@ -35,6 +38,9 @@ public abstract class TestBase : IAsyncLifetime
 
         // Configure the service collection with NATS connection
         fixture.ConfigureServices(services);
+
+        // Add the cache
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
 
         // Build service provider
         ServiceProvider = services.BuildServiceProvider();
@@ -49,6 +55,11 @@ public abstract class TestBase : IAsyncLifetime
     /// Gets the NATS connection from the service provider
     /// </summary>
     protected INatsConnection NatsConnection => ServiceProvider.GetRequiredService<INatsConnection>();
+
+    /// <summary>
+    /// Gets the cache from the service provider
+    /// </summary>
+    protected IDistributedCache Cache => ServiceProvider.GetRequiredService<IDistributedCache>();
 
     /// <summary>
     /// Purge stream before test run
@@ -71,4 +82,9 @@ public abstract class TestBase : IAsyncLifetime
         await ServiceProvider.DisposeAsync();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Gets the key for the current test method
+    /// </summary>
+    protected string MethodKey([CallerMemberName] string caller = "") => caller;
 }

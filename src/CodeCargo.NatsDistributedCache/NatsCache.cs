@@ -28,32 +28,33 @@ public class CacheEntry
 /// <summary>
 /// Distributed cache implementation using NATS Key-Value Store.
 /// </summary>
-public partial class NatsCache : IBufferDistributedCache, IDisposable
+public partial class NatsCache : IBufferDistributedCache
 {
     // Static JSON serializer for CacheEntry
     private static readonly NatsJsonContextSerializer<CacheEntry> CacheEntrySerializer =
         new(CacheEntryJsonContext.Default);
 
-    private readonly ILogger _logger;
-    private readonly NatsCacheOptions _options;
+    private readonly string _bucketName;
     private readonly string _keyPrefix;
+    private readonly ILogger _logger;
     private readonly INatsConnection _natsConnection;
-    private readonly SemaphoreSlim _connectionLock = new(initialCount: 1, maxCount: 1);
-    private NatsKVStore? _kvStore;
-    private bool _disposed;
+    private Lazy<Task<INatsKVStore>> _lazyKvStore;
 
     public NatsCache(
         IOptions<NatsCacheOptions> optionsAccessor,
         ILogger<NatsCache> logger,
         INatsConnection natsConnection)
     {
-        ArgumentNullException.ThrowIfNull(optionsAccessor);
-        ArgumentNullException.ThrowIfNull(natsConnection);
-
-        _options = optionsAccessor.Value;
+        var options = optionsAccessor.Value;
+        _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
+            ? options.BucketName
+            : throw new NullReferenceException("BucketName must be set");
+        _keyPrefix = string.IsNullOrEmpty(options.CacheKeyPrefix)
+            ? string.Empty
+            : options.CacheKeyPrefix.TrimEnd('.');
+        _lazyKvStore = CreateLazyKvStore();
         _logger = logger;
         _natsConnection = natsConnection;
-        _keyPrefix = string.IsNullOrEmpty(_options.CacheKeyPrefix) ? string.Empty : _options.CacheKeyPrefix.TrimEnd('.');
     }
 
     public NatsCache(IOptions<NatsCacheOptions> optionsAccessor, INatsConnection natsConnection)
@@ -72,18 +73,14 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         DistributedCacheEntryOptions options,
         CancellationToken token = default)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(value);
-        ArgumentNullException.ThrowIfNull(options);
-        token.ThrowIfCancellationRequested();
-
         var ttl = GetTtl(options);
         var entry = CreateCacheEntry(value, options);
         var kvStore = await GetKvStore().ConfigureAwait(false);
 
         try
         {
-            await kvStore.PutAsync(GetPrefixedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
+            // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
+            await ((NatsKVStore)kvStore).PutAsync(GetPrefixedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -104,10 +101,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         DistributedCacheEntryOptions options,
         CancellationToken token = default)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(options);
-        token.ThrowIfCancellationRequested();
-
         var array = value.IsSingleSegment ? value.First.ToArray() : value.ToArray();
         await SetAsync(key, array, options, token).ConfigureAwait(false);
     }
@@ -123,25 +116,15 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     public void Refresh(string key) => RefreshAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public async Task RefreshAsync(string key, CancellationToken token = default)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-        token.ThrowIfCancellationRequested();
-
-        await GetAndRefreshAsync(key, getData: false, retry: true, token: token).ConfigureAwait(false);
-    }
+    public Task RefreshAsync(string key, CancellationToken token = default) =>
+        GetAndRefreshAsync(key, getData: false, retry: true, token: token);
 
     /// <inheritdoc />
     public byte[]? Get(string key) => GetAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-        token.ThrowIfCancellationRequested();
-
-        return await GetAndRefreshAsync(key, getData: true, retry: true, token: token).ConfigureAwait(false);
-    }
+    public Task<byte[]?> GetAsync(string key, CancellationToken token = default) =>
+        GetAndRefreshAsync(key, getData: true, retry: true, token: token);
 
     /// <inheritdoc />
     public bool TryGet(string key, IBufferWriter<byte> destination) =>
@@ -153,10 +136,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         IBufferWriter<byte> destination,
         CancellationToken token = default)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(destination);
-        token.ThrowIfCancellationRequested();
-
         try
         {
             var result = await GetAsync(key, token).ConfigureAwait(false);
@@ -174,33 +153,8 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         return false;
     }
 
-    public void Dispose()
-    {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
-    }
-
     // This is the method used by hybrid caching to determine if it should use the distributed instance
     internal virtual bool IsHybridCacheActive() => false;
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        if (disposing)
-        {
-            // Dispose managed state (managed objects)
-            _connectionLock.Dispose();
-            _kvStore = null; // Set to null to ensure we don't use it after dispose
-        }
-
-        // Free unmanaged resources (unmanaged objects) and override finalizer
-        _disposed = true;
-    }
 
     private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
@@ -275,47 +229,27 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         ? key
         : _keyPrefix + "." + key;
 
-    private async Task<NatsKVStore> GetKvStore()
-    {
-        if (_kvStore != null && !_disposed)
+    private Lazy<Task<INatsKVStore>> CreateLazyKvStore() =>
+        new(async () =>
         {
-            return _kvStore;
-        }
-
-        await _connectionLock.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_kvStore == null || _disposed)
+            try
             {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                if (string.IsNullOrEmpty(_options.BucketName))
-                {
-                    throw new InvalidOperationException("BucketName is required and cannot be null or empty.");
-                }
-
-                var jsContext = _natsConnection.CreateJetStreamContext();
-                var kvContext = new NatsKVContext(jsContext);
-                _kvStore = (NatsKVStore)await kvContext.GetStoreAsync(_options.BucketName).ConfigureAwait(false);
-                if (_kvStore == null)
-                {
-                    throw new InvalidOperationException("Failed to create NATS KV store");
-                }
-
-                LogConnected();
+                var kv = _natsConnection.CreateKeyValueStoreContext();
+                var store = await kv.GetStoreAsync(_bucketName);
+                LogConnected(_bucketName);
+                return store;
             }
-        }
-        catch (Exception ex)
-        {
-            LogException(ex);
-            throw;
-        }
-        finally
-        {
-            _connectionLock.Release();
-        }
+            catch (Exception ex)
+            {
+                // Reset the lazy initializer on failure for next attempt
+                _lazyKvStore = CreateLazyKvStore();
 
-        return _kvStore;
-    }
+                LogException(ex);
+                throw;
+            }
+        });
+
+    private Task<INatsKVStore> GetKvStore() => _lazyKvStore.Value;
 
     private async Task<byte[]?> GetAndRefreshAsync(
         string key,
@@ -323,8 +257,6 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         bool retry,
         CancellationToken token = default)
     {
-        token.ThrowIfCancellationRequested();
-
         var kvStore = await GetKvStore().ConfigureAwait(false);
         var prefixedKey = GetPrefixedKey(key);
         try
@@ -375,7 +307,7 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
     }
 
     private async Task UpdateEntryExpirationAsync(
-        NatsKVStore kvStore,
+        INatsKVStore kvStore,
         string key,
         NatsKVEntry<CacheEntry> kvEntry,
         CancellationToken token)
@@ -405,7 +337,8 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
             // Use optimistic concurrency control with the last revision
             try
             {
-                await kvStore.UpdateAsync(
+                // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
+                await ((NatsKVStore)kvStore).UpdateAsync(
                     key,
                     kvEntry.Value,
                     kvEntry.Revision,
@@ -421,23 +354,14 @@ public partial class NatsCache : IBufferDistributedCache, IDisposable
         }
     }
 
-    /// <summary>
-    /// Removes the value with the given key.
-    /// </summary>
-    /// <param name="key">A string identifying the requested value.</param>
-    /// <param name="natsKvDeleteOpts">Nats KV delete options</param>
-    /// <param name="token">Optional. The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
-    /// <returns>The <see cref="Task"/> that represents the asynchronous operation.</returns>
     private async Task RemoveAsync(
         string key,
         NatsKVDeleteOpts? natsKvDeleteOpts = null,
         CancellationToken token = default)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        token.ThrowIfCancellationRequested();
-
         var kvStore = await GetKvStore().ConfigureAwait(false);
-        await kvStore.DeleteAsync(GetPrefixedKey(key), natsKvDeleteOpts, cancellationToken: token).ConfigureAwait(false);
+        await kvStore.DeleteAsync(GetPrefixedKey(key), natsKvDeleteOpts, cancellationToken: token)
+            .ConfigureAwait(false);
     }
 }
 

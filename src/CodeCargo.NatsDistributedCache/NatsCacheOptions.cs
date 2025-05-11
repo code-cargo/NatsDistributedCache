@@ -18,17 +18,6 @@ namespace CodeCargo.NatsDistributedCache
         /// </summary>
         public string? CacheKeyPrefix { get; set; }
 
-        /// <summary>
-        /// If set, attempt to retrieve the INatsConnection as a keyed service from the service provider.
-        /// </summary>
-        public string? ConnectionServiceKey { get; set; }
-
-        /// <summary>
-        /// When true (the default) register a <see cref="NatsHybridCacheSerializerFactory"/> as an
-        /// IHybridCacheSerializerFactory that uses the NATS Connection's Serializer Registry.
-        /// </summary>
-        public bool RegisterHybridCacheSerializerFactory { get; set; } = true;
-
         NatsCacheOptions IOptions<NatsCacheOptions>.Value => this;
     }
 }
