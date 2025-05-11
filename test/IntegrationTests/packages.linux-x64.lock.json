@@ -1066,7 +1066,8 @@
         "dependencies": {
           "Aspire.Dashboard.Sdk.linux-x64": "[9.2.1, )",
           "Aspire.Hosting.AppHost": "[9.2.1, )",
-          "Aspire.Hosting.Orchestration.linux-x64": "[9.2.1, )"
+          "Aspire.Hosting.Orchestration.linux-x64": "[9.2.1, )",
+          "CodeCargo.NatsDistributedCache": "[1.0.0, )"
         }
       },
       "testutils": {

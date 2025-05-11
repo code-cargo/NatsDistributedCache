@@ -13,6 +13,7 @@ namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 public class NatsIntegrationFixture : IAsyncLifetime
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(30);
+    private readonly Dictionary<Type, ServiceLifetime> _registeredServiceTypes = new();
     private DistributedApplication? _app;
     private int _disposed;
     private ServiceProvider? _serviceProvider;
@@ -51,7 +52,14 @@ public class NatsIntegrationFixture : IAsyncLifetime
         {
             builder.AddConsole();
         });
-        services.AddNatsTestServices(natsConnectionString);
+        services.AddNatsTestClient(natsConnectionString);
+
+        // Track registered singleton services before building the service provider
+        foreach (var descriptor in services)
+        {
+            _registeredServiceTypes[descriptor.ServiceType] = descriptor.Lifetime;
+        }
+
         _serviceProvider = services.BuildServiceProvider();
 
         // create the KV store
@@ -65,7 +73,28 @@ public class NatsIntegrationFixture : IAsyncLifetime
     /// Configures the services with the NATS connection
     /// </summary>
     /// <param name="services">The service collection to configure</param>
-    public void ConfigureServices(IServiceCollection services) => services.AddSingleton(NatsConnection);
+    public void ConfigureServices(IServiceCollection services)
+    {
+        if (_serviceProvider == null)
+        {
+            throw new InvalidOperationException("InitializeAsync must be called before ConfigureServices");
+        }
+
+        // Register all singleton services from our service provider
+        // Filter out open generic types only
+        foreach (var serviceType in _registeredServiceTypes
+                     .Where(t => t.Value == ServiceLifetime.Singleton)
+                     .Select(t => t.Key)
+                     .Where(type => !type.IsGenericTypeDefinition))
+        {
+            // Get the service instance from our provider and register it with the provided services
+            var instance = _serviceProvider.GetService(serviceType);
+            if (instance != null)
+            {
+                services.AddSingleton(serviceType, instance);
+            }
+        }
+    }
 
     /// <summary>
     /// Disposes the fixture by shutting down the NATS server
@@ -77,16 +106,16 @@ public class NatsIntegrationFixture : IAsyncLifetime
             return;
         }
 
+        if (_serviceProvider != null)
+        {
+            await _serviceProvider.DisposeAsync();
+        }
+
         if (_app != null)
         {
             var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await _app.StopAsync(stopCts.Token);
             await _app.DisposeAsync();
-        }
-
-        if (_serviceProvider != null)
-        {
-            await _serviceProvider.DisposeAsync();
         }
 
         GC.SuppressFinalize(this);

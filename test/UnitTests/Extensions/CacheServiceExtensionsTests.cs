@@ -4,16 +4,11 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache.UnitTests;
+namespace CodeCargo.NatsDistributedCache.UnitTests.Extensions;
 
 public class CacheServiceExtensionsUnitTests
 {
-    private readonly Mock<INatsConnection> _mockNatsConnection;
-
-    public CacheServiceExtensionsUnitTests()
-    {
-        _mockNatsConnection = new Mock<INatsConnection>();
-    }
+    private readonly Mock<INatsConnection> _mockNatsConnection = new();
 
     [Fact]
     public void AddNatsCache_RegistersDistributedCacheAsSingleton()
@@ -64,13 +59,13 @@ public class CacheServiceExtensionsUnitTests
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(_mockNatsConnection.Object);
-        var expectedInstanceName = "TestInstance";
+        var expectedNamespace = "TestNamespace";
 
         // Act
         services.AddNatsDistributedCache(options =>
         {
             options.BucketName = "cache";
-            options.InstanceName = expectedInstanceName;
+            options.CacheKeyPrefix = expectedNamespace;
         });
 
         // Build the provider to verify options
@@ -78,7 +73,7 @@ public class CacheServiceExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<NatsCacheOptions>>().Value;
 
         // Assert
-        Assert.Equal(expectedInstanceName, options.InstanceName);
+        Assert.Equal(expectedNamespace, options.CacheKeyPrefix);
         Assert.Equal("cache", options.BucketName);
     }
 
@@ -105,11 +100,42 @@ public class CacheServiceExtensionsUnitTests
         Assert.True(wasInvoked);
     }
 
+    [Fact]
+    public void AddNatsCache_AcceptsConnectionServiceKey_Parameter()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var defaultConnection = new Mock<INatsConnection>().Object;
+        var keyedConnection = new Mock<INatsConnection>().Object;
+
+        services.AddSingleton(defaultConnection);
+        services.AddKeyedSingleton("my-key", keyedConnection);
+
+        // Act - ensure this doesn't throw an exception
+        services.AddNatsDistributedCache(
+            options => { options.BucketName = "cache"; },
+            connectionServiceKey: "my-key");
+
+        // Assert
+        // Verify the IDistributedCache registration looks correct
+        var cacheRegistration = services.FirstOrDefault(x => x.ServiceType == typeof(IDistributedCache));
+        Assert.NotNull(cacheRegistration);
+        Assert.Equal(ServiceLifetime.Singleton, cacheRegistration.Lifetime);
+        Assert.Null(cacheRegistration.ImplementationType); // Should use a factory, not a direct type
+        Assert.NotNull(cacheRegistration.ImplementationFactory); // Should use a factory registration
+
+        // Verify the NatsCacheOptions were configured
+        var optionsRegistration = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IConfigureOptions<NatsCacheOptions>));
+        Assert.NotNull(optionsRegistration);
+    }
+
     private class FakeDistributedCache : IDistributedCache
     {
-        public byte[]? Get(string key) => throw new NotImplementedException();
+        public byte[] Get(string key) => throw new NotImplementedException();
 
-        public Task<byte[]?> GetAsync(string key, CancellationToken token = default) => throw new NotImplementedException();
+        public Task<byte[]?> GetAsync(string key, CancellationToken token = default) =>
+            throw new NotImplementedException();
 
         public void Refresh(string key) => throw new NotImplementedException();
 
@@ -119,8 +145,13 @@ public class CacheServiceExtensionsUnitTests
 
         public Task RemoveAsync(string key, CancellationToken token = default) => throw new NotImplementedException();
 
-        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) => throw new NotImplementedException();
+        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
+            throw new NotImplementedException();
 
-        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default) => throw new NotImplementedException();
+        public Task SetAsync(
+            string key,
+            byte[] value,
+            DistributedCacheEntryOptions options,
+            CancellationToken token = default) => throw new NotImplementedException();
     }
 }

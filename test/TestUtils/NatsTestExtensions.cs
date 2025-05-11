@@ -6,7 +6,7 @@ namespace CodeCargo.NatsDistributedCache.TestUtils;
 
 public static class NatsTestExtensions
 {
-    public static IServiceCollection AddNatsTestServices(this IServiceCollection services, string natsConnectionString) =>
+    public static IServiceCollection AddNatsTestClient(this IServiceCollection services, string natsConnectionString) =>
         services.AddNats(configureOpts: options =>
             options with
             {

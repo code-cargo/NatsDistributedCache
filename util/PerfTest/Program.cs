@@ -39,7 +39,7 @@ var builder = Host.CreateDefaultBuilder(args);
 // Add services directly to the builder
 builder.ConfigureServices(services =>
 {
-    services.AddNatsTestServices(natsConnectionString);
+    services.AddNatsTestClient(natsConnectionString);
     services.AddScoped<PerfTest>();
 });
 
