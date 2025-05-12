@@ -22,6 +22,7 @@ dotnet outdated -vl Major
 dotnet outdated -n -vl Major -u
 # prompt
 dotnet outdated -n -vl Major -u:prompt
+```
 
 After updating dependencies, you must update the lock files for all supported platforms by running the update script (see next section).
 
