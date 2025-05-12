@@ -6,10 +6,6 @@ on:
       - "v*.*.*"
       - "v*.*.*-*"
 
-permissions:
-  contents: read
-  packages: write
-
 defaults:
   run:
     shell: bash
@@ -31,12 +27,16 @@ jobs:
     - name: Write strong name key file
       run: |
         set +x # Disable command echoing for security
-        echo "$STRONG_NAME_KEY" > NatsDistributedCache.snk
-        chmod 600 NatsDistributedCache.snk
+        # Base64 decode the strong name key and save to keys directory
+        echo "$STRONG_NAME_KEY" | base64 -d > keys/NatsDistributedCache.2025-05-12.snk
+        chmod 600 keys/NatsDistributedCache.2025-05-12.snk
+        
+        # Verify using the Docker-based script
+        ./dev/verify-snk.sh
       env:
         STRONG_NAME_KEY: ${{secrets.STRONG_NAME_KEY}}
         
-    - name: Pack SDK
+    - name: Pack
       run: dotnet pack -c Release -p:version=${GITHUB_REF#refs/*/v} -o ./publish
 
     - name: Publish to NuGet.org
