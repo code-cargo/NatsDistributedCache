@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
@@ -22,7 +21,7 @@ public class PerfTest
     private const int FieldWidth = 12;
     private const int BatchSize = 100;
     private const int ValueDataSizeBytes = 256;
-    private const int KeyExpirySecs = 2;
+    private const int AbsoluteExpirationSecs = 10;
     private const int InsertDelayMs = 10;
     private const int RetrieveDelayMs = 5;
     private const int RemoveDelayMs = 50;
@@ -57,6 +56,7 @@ public class PerfTest
         _stats["KeysInserted"] = 0;
         _stats["KeysRetrieved"] = 0;
         _stats["KeysRemoved"] = 0;
+        _stats["KeysExpired"] = 0;
     }
 
     public async Task Run(CancellationToken cancellationToken)
@@ -156,7 +156,7 @@ public class PerfTest
                             {
                                 var options = new DistributedCacheEntryOptions
                                 {
-                                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(KeyExpirySecs + _random.Next(KeyExpirySecs))
+                                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(AbsoluteExpirationSecs),
                                 };
 
                                 await _cache.SetAsync(key, data, options, ct);
@@ -196,30 +196,7 @@ public class PerfTest
 
                     while (!ct.IsCancellationRequested)
                     {
-                        string? key = null;
-
-                        lock (_activeKeys)
-                        {
-                            if (_activeKeys.Count > 0)
-                            {
-                                var index = _random.Next(_activeKeys.Count);
-                                key = _activeKeys[index];
-                            }
-                        }
-
-                        if (key != null)
-                        {
-                            try
-                            {
-                                await _cache.GetAsync(key, ct);
-                                _stats.AddOrUpdate("KeysRetrieved", 1, (_, count) => count + 1);
-                            }
-                            catch (Exception ex) when (ex is not OperationCanceledException)
-                            {
-                                Console.WriteLine($"Retrieve error: {ex.Message}");
-                            }
-                        }
-
+                        await ProcessSingleRetrievalAsync(ct);
                         await Task.Delay(RetrieveDelayMs, ct); // Small delay between retrievals
                     }
                 }
@@ -229,6 +206,52 @@ public class PerfTest
                 }
             },
             ct);
+
+    private async Task ProcessSingleRetrievalAsync(CancellationToken ct)
+    {
+        var (key, index) = GetRandomActiveKey();
+        if (key == null)
+            return;
+
+        try
+        {
+            var result = await _cache.GetAsync(key, ct);
+            _stats.AddOrUpdate("KeysRetrieved", 1, (_, count) => count + 1);
+
+            if (result == null)
+            {
+                _stats.AddOrUpdate("KeysExpired", 1, (_, count) => count + 1);
+                RemoveExpiredKeyFromActiveList(index);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.WriteLine($"Retrieve error: {ex.Message}");
+        }
+    }
+
+    private (string? Key, int Index) GetRandomActiveKey()
+    {
+        lock (_activeKeys)
+        {
+            if (_activeKeys.Count == 0)
+                return (null, -1);
+
+            var index = _random.Next(_activeKeys.Count);
+            return (_activeKeys[index], index);
+        }
+    }
+
+    private void RemoveExpiredKeyFromActiveList(int index)
+    {
+        lock (_activeKeys)
+        {
+            if (index >= 0 && index < _activeKeys.Count)
+            {
+                _activeKeys.RemoveAt(index);
+            }
+        }
+    }
 
     private Task StartRemoveTask(CancellationToken ct) =>
         Task.Run(
@@ -367,12 +390,14 @@ public class PerfTest
     {
         var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
         var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
-        var currentKeys = _stats["KeysInserted"] - _stats["KeysRemoved"];
         Console.WriteLine("========== CodeCargo NatsDistributedCache Performance ==========");
-        Console.WriteLine($"Current Keys:     {currentKeys,FieldWidth:N0}");
+        Console.WriteLine($"Current Keys:     {_activeKeys.Count,FieldWidth:N0}");
         Console.WriteLine($"Keys Inserted:    {_stats["KeysInserted"],FieldWidth:N0}");
         Console.WriteLine($"Keys Retrieved:   {_stats["KeysRetrieved"],FieldWidth:N0}");
         Console.WriteLine($"Keys Removed:     {_stats["KeysRemoved"],FieldWidth:N0}");
+        Console.WriteLine("----------------------------------------------------------");
+        Console.WriteLine($"Cache Hits:       {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Cache Misses:     {_stats["KeysExpired"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
         Console.WriteLine($"Elapsed Time:     {FormatElapsedTime(_stopwatch.Elapsed),FieldWidth}");
         Console.WriteLine($"Time Remaining:   {FormatElapsedTime(TimeSpan.FromSeconds(MaxTestRuntimeSecs) - _stopwatch.Elapsed),FieldWidth}");
@@ -385,16 +410,18 @@ public class PerfTest
     {
         var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
         var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
-        var currentKeys = _stats["KeysInserted"] - _stats["KeysRemoved"];
         Console.Clear();
         Console.WriteLine("========== CodeCargo NatsDistributedCache Test Summary ==========");
         Console.WriteLine($"Test completed at:    {DateTime.Now}");
         Console.WriteLine($"Total test duration:  {FormatElapsedTime(_stopwatch.Elapsed)}");
         Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Final Current Keys:   {currentKeys,FieldWidth:N0}");
+        Console.WriteLine($"Final Current Keys:   {_activeKeys.Count,FieldWidth:N0}");
         Console.WriteLine($"Total Keys Inserted:  {_stats["KeysInserted"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Removed:   {_stats["KeysRemoved"],FieldWidth:N0}");
+        Console.WriteLine("----------------------------------------------------------");
+        Console.WriteLine($"Cache Hits:       {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Cache Misses:     {_stats["KeysExpired"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
         Console.WriteLine($"Total operations:     {totalOps,FieldWidth:N0}");
         Console.WriteLine($"Average Ops/Second:   {opsPerSecond,FieldWidth:N0}");
