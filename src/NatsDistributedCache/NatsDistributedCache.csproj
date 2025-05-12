@@ -5,7 +5,26 @@
     <Nullable>enable</Nullable>
     <RootNamespace>CodeCargo.Nats.DistributedCache</RootNamespace>
     <Description>NATS implementation of Microsoft.Extensions.Caching.Distributed.IDistributedCache.</Description>
-    <PackageTags>cache;caching;distributed;nats</PackageTags>
+
+    <!-- Assembly signing (only if key file exists) -->
+    <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">true</SignAssembly>
+    <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk</AssemblyOriginatorKeyFile>
+    
+    <!-- NuGet metadata -->
+    <Authors>CodeCargo</Authors>
+    <Company>CodeCargo</Company>
+    <Copyright>Copyright © $([System.DateTime]::Now.Year) CodeCargo</Copyright>
+    <PackageId>CodeCargo.Nats.DistributedCache</PackageId>
+    <PackageTags>distributed cache;hybrid cache;nats</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/code-cargo/NatsDistributedCache</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/code-cargo/NatsDistributedCache</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +32,11 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
     <PackageReference Include="NATS.Client.KeyValueStore" Version="2.6.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
