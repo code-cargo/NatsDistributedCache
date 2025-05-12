@@ -17,11 +17,15 @@ namespace CodeCargo.NatsDistributedCache.PerfTest;
 public class PerfTest
 {
     // Configuration
-    private const int NumCacheItems = 10_000;
-    private const int KeyExpirySecs = 5;
     private const int MaxTestRuntimeSecs = 60;
+    private const int NumCacheItems = 10_000;
     private const int FieldWidth = 12;
     private const int BatchSize = 100;
+    private const int ValueDataSizeBytes = 256;
+    private const int KeyExpirySecs = 2;
+    private const int InsertDelayMs = 10;
+    private const int RetrieveDelayMs = 5;
+    private const int RemoveDelayMs = 50;
 
     // Dependencies
     private readonly INatsConnection _nats;
@@ -147,7 +151,7 @@ public class PerfTest
                         for (var j = 0; j < BatchSize && i + j < NumCacheItems && !ct.IsCancellationRequested; j++)
                         {
                             var key = $"BatchNum{i}IndividualNum{j}";
-                            var data = GenerateRandomData(256); // 256 byte values
+                            var data = GenerateRandomData(ValueDataSizeBytes); // 256 byte values
 
                             try
                             {
@@ -172,7 +176,7 @@ public class PerfTest
                         }
 
                         // Small delay between batches
-                        await Task.Delay(10, ct);
+                        await Task.Delay(InsertDelayMs, ct);
                     }
                 }
                 catch (OperationCanceledException)
@@ -218,7 +222,7 @@ public class PerfTest
                             }
                         }
 
-                        await Task.Delay(5, ct); // Small delay between retrievals
+                        await Task.Delay(RetrieveDelayMs, ct); // Small delay between retrievals
                     }
                 }
                 catch (OperationCanceledException)
@@ -265,7 +269,7 @@ public class PerfTest
                             }
                         }
 
-                        await Task.Delay(50, ct); // Less frequent expiry operations
+                        await Task.Delay(RemoveDelayMs, ct); // Less frequent expiry operations
                     }
                 }
                 catch (OperationCanceledException)
@@ -363,30 +367,35 @@ public class PerfTest
 
     private void PrintProgress()
     {
+        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysExpired"];
         Console.WriteLine("========== CodeCargo NatsDistributedCache Performance ==========");
-        Console.WriteLine($"Keys Inserted:  {_stats["KeysInserted"],FieldWidth:N0}");
-        Console.WriteLine($"Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
-        Console.WriteLine($"Keys Expired:   {_stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine($"Current Keys:   {_stats["CurrentKeys"],FieldWidth:N0}");
+        Console.WriteLine($"Current Keys:     {_stats["CurrentKeys"],FieldWidth:N0}");
+        Console.WriteLine($"Keys Inserted:    {_stats["KeysInserted"],FieldWidth:N0}");
+        Console.WriteLine($"Keys Retrieved:   {_stats["KeysRetrieved"],FieldWidth:N0}");
+        Console.WriteLine($"Keys Expired:     {_stats["KeysExpired"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Ops per Second: {_stats["OperationsPerSec"],FieldWidth:N0}");
-        Console.WriteLine($"Elapsed Time:   {FormatElapsedTime(_stopwatch.Elapsed),FieldWidth}");
+        Console.WriteLine($"Elapsed Time:     {FormatElapsedTime(_stopwatch.Elapsed),FieldWidth}");
+        Console.WriteLine($"Time Remaining:   {FormatElapsedTime(TimeSpan.FromSeconds(MaxTestRuntimeSecs) - _stopwatch.Elapsed),FieldWidth}");
+        Console.WriteLine($"Total operations: {totalOps,FieldWidth:N0}");
+        Console.WriteLine($"Ops per Second:   {_stats["OperationsPerSec"],FieldWidth:N0}");
         Console.WriteLine("==========================================================");
     }
 
     private void PrintFinalStats()
     {
+        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysExpired"];
         Console.Clear();
         Console.WriteLine("========== CodeCargo NatsDistributedCache Test Summary ==========");
-        Console.WriteLine($"Test completed at: {DateTime.Now}");
-        Console.WriteLine($"Total test duration: {FormatElapsedTime(_stopwatch.Elapsed)}");
+        Console.WriteLine($"Test completed at:    {DateTime.Now}");
+        Console.WriteLine($"Total test duration:  {FormatElapsedTime(_stopwatch.Elapsed)}");
         Console.WriteLine("----------------------------------------------------------");
+        Console.WriteLine($"Final Current Keys:   {_stats["CurrentKeys"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Inserted:  {_stats["KeysInserted"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Expired:   {_stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine($"Final Current Keys:   {_stats["CurrentKeys"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Average Ops per Second: {_stats["OperationsPerSec"],FieldWidth:N0}");
+        Console.WriteLine($"Total operations:     {totalOps,FieldWidth:N0}");
+        Console.WriteLine($"Average Ops/Second:   {_stats["OperationsPerSec"],FieldWidth:N0}");
         Console.WriteLine("==========================================================");
 
         // Also log memory usage
