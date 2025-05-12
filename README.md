@@ -1,47 +1,46 @@
 # CodeCargo.Nats.DistributedCache
 
-## Updating Packages
+## Overview
 
-Use the `dotnet outdated` tool to update packages in `.csproj` files. When updating packages in a project with lock
-files, always use the `-n` flag to prevent automatic restoration. To update tools themselves, edit
-`.config/dotnet-tools.json`.
+A .NET 8+ library for integrating NATS as a distributed cache in ASP.NET Core applications. Supports the new HybridCache system for fast, scalable caching.
 
-```bash
-# all updates
-# view
-dotnet outdated
-# apply all (with -n to prevent automatic restore)
-dotnet outdated -n -u
-# prompt
-dotnet outdated -n -u:prompt
-
-# minor updates only
-# view
-dotnet outdated -vl Major
-# apply all (with -n to prevent automatic restore)
-dotnet outdated -n -vl Major -u
-# prompt
-dotnet outdated -n -vl Major -u:prompt
-
-After updating dependencies, you must update the lock files for all supported platforms by running the update script (see next section).
-
-## Updating NuGet Lock Files
-
-This project uses NuGet package lock files for reproducible builds across different platforms. When packages are updated, the lock files need to be regenerated for all supported platforms.
-
-Use the provided script to update all platform-specific lock files:
+## Installation
 
 ```bash
-./dev/update-nuget-lockfiles.sh
+dotnet add package CodeCargo.Nats.DistributedCache
 ```
 
-This will generate lock files for:
+## Usage
 
-- Linux x64: `packages.linux-x64.lock.json`
-- macOS ARM64: `packages.osx-arm64.lock.json`
-- Windows x64: `packages.win-x64.lock.json`
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using NATS.Client.Core;
+using CodeCargo.NatsDistributedCache;
 
-These lock files are used automatically based on the runtime identifier specified during build/restore.
+var builder = WebApplication.CreateBuilder(args);
 
-**Important**: Always run this script after updating package dependencies to ensure all platform-specific lock files are
-properly regenerated.
+// Add a NATS connection
+var natsOpts = NatsOpts.Default with { Url = "nats://localhost:4222" }
+builder.Services.AddNats(opts => natsOpts);
+
+// Add a NATS distributed cache
+builder.Services.AddNatsDistributedCache(options =>
+{
+    options.BucketName = "cache";
+});
+
+// (Optional) Add HybridCache
+var hybridCacheServices = builder.Services.AddHybridCache();
+
+// (Optional) Use NATS Serializer for HybridCache
+hybridCacheServices.AddSerializerFactory(
+  natsOpts.SerializerRegistry.ToHybridCacheSerializerFactory());
+
+var app = builder.Build();
+app.Run();
+```
+
+## Additional Resources
+
+* [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0)
+* [NATS .NET Client Documentation](https://nats-io.github.io/nats.net/api/NATS.Client.Core.NatsOpts.html)
