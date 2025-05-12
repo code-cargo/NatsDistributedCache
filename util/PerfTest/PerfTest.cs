@@ -26,6 +26,7 @@ public class PerfTest
     private const int InsertDelayMs = 10;
     private const int RetrieveDelayMs = 5;
     private const int RemoveDelayMs = 50;
+    private const int StatsUpdateIntervalMs = 500;
 
     // Dependencies
     private readonly INatsConnection _nats;
@@ -55,9 +56,7 @@ public class PerfTest
         // Initialize statistics counters
         _stats["KeysInserted"] = 0;
         _stats["KeysRetrieved"] = 0;
-        _stats["KeysExpired"] = 0;
-        _stats["OperationsPerSec"] = 0;
-        _stats["CurrentKeys"] = 0;
+        _stats["KeysRemoved"] = 0;
     }
 
     public async Task Run(CancellationToken cancellationToken)
@@ -79,12 +78,12 @@ public class PerfTest
         var watchTask = StartWatchTask(cts.Token);
         var insertTask = StartInsertTask(cts.Token);
         var retrieveTask = StartRetrieveTask(cts.Token);
-        var expireTask = StartExpireTask(cts.Token);
+        var removeTask = StartRemoveTask(cts.Token);
 
         try
         {
             // Wait for all tasks to complete or cancellation
-            await Task.WhenAll(watchTask, insertTask, retrieveTask, expireTask);
+            await Task.WhenAll(watchTask, insertTask, retrieveTask, removeTask);
         }
         catch (OperationCanceledException)
         {
@@ -213,8 +212,7 @@ public class PerfTest
                             try
                             {
                                 await _cache.GetAsync(key, ct);
-
-                                // Note: actual count is tracked by the watcher
+                                _stats.AddOrUpdate("KeysRetrieved", 1, (_, count) => count + 1);
                             }
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
@@ -232,7 +230,7 @@ public class PerfTest
             },
             ct);
 
-    private Task StartExpireTask(CancellationToken ct) =>
+    private Task StartRemoveTask(CancellationToken ct) =>
         Task.Run(
             async () =>
             {
@@ -265,7 +263,7 @@ public class PerfTest
                             }
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
-                                Console.WriteLine($"Expire error: {ex.Message}");
+                                Console.WriteLine($"Remove error: {ex.Message}");
                             }
                         }
 
@@ -292,7 +290,7 @@ public class PerfTest
                     }
 
                     var opsBuffer = new List<NatsKVOperation>();
-                    var statsUpdateInterval = TimeSpan.FromMilliseconds(500);
+                    var statsUpdateInterval = TimeSpan.FromMilliseconds(StatsUpdateIntervalMs);
                     var lastStatsUpdate = DateTimeOffset.Now;
 
                     await foreach (var entry in _kvStore.WatchAsync<ReadOnlySequence<byte>>(
@@ -301,30 +299,9 @@ public class PerfTest
                                        cancellationToken: ct))
                     {
                         opsBuffer.Add(entry.Operation);
-
-                        // Update stats periodically instead of on every operation
-                        if (DateTimeOffset.Now - lastStatsUpdate > statsUpdateInterval)
+                        if (DateTimeOffset.Now - lastStatsUpdate <= statsUpdateInterval)
                         {
-                            // var gets = opsBuffer.Count(op => op == NatsKVOperation.Get);
-                            var puts = opsBuffer.Count(op => op == NatsKVOperation.Put);
-                            var deletes = opsBuffer.Count(op => op == NatsKVOperation.Del);
-
-                            // _stats["KeysRetrieved"] += gets;
-                            _stats["KeysInserted"] += puts;
-                            _stats["KeysExpired"] += deletes;
-
-                            // Update current keys count
-                            _stats["CurrentKeys"] = _stats["KeysInserted"] - _stats["KeysExpired"];
-
-                            // Calculate operations per second
-                            var elapsed = _stopwatch.Elapsed.TotalSeconds;
-                            if (elapsed > 0)
-                            {
-                                var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysExpired"];
-                                _stats["OperationsPerSec"] = (long)(totalOps / elapsed);
-                            }
-
-                            opsBuffer.Clear();
+                            await UpdateStatsIfNeeded(opsBuffer);
                             lastStatsUpdate = DateTimeOffset.Now;
                         }
                     }
@@ -339,6 +316,27 @@ public class PerfTest
                 }
             },
             ct);
+
+    private Task UpdateStatsIfNeeded(List<NatsKVOperation> opsBuffer)
+    {
+        // Process the buffer and update stats
+        // Read operations are tracked directly in StartRetrieveTask
+        var puts = opsBuffer.Count(op => op == NatsKVOperation.Put);
+        var deletes = opsBuffer.Count(op => op == NatsKVOperation.Del);
+
+        if (puts > 0)
+        {
+            _stats.AddOrUpdate("KeysInserted", puts, (_, count) => count + puts);
+        }
+
+        if (deletes > 0)
+        {
+            _stats.AddOrUpdate("KeysRemoved", deletes, (_, count) => count + deletes);
+        }
+
+        opsBuffer.Clear();
+        return Task.CompletedTask;
+    }
 
     private Task StartPrintTask(CancellationToken ct) =>
         Task.Run(
@@ -367,35 +365,39 @@ public class PerfTest
 
     private void PrintProgress()
     {
-        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysExpired"];
+        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
+        var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
+        var currentKeys = _stats["KeysInserted"] - _stats["KeysRemoved"];
         Console.WriteLine("========== CodeCargo NatsDistributedCache Performance ==========");
-        Console.WriteLine($"Current Keys:     {_stats["CurrentKeys"],FieldWidth:N0}");
+        Console.WriteLine($"Current Keys:     {currentKeys,FieldWidth:N0}");
         Console.WriteLine($"Keys Inserted:    {_stats["KeysInserted"],FieldWidth:N0}");
         Console.WriteLine($"Keys Retrieved:   {_stats["KeysRetrieved"],FieldWidth:N0}");
-        Console.WriteLine($"Keys Expired:     {_stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Keys Removed:     {_stats["KeysRemoved"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
         Console.WriteLine($"Elapsed Time:     {FormatElapsedTime(_stopwatch.Elapsed),FieldWidth}");
         Console.WriteLine($"Time Remaining:   {FormatElapsedTime(TimeSpan.FromSeconds(MaxTestRuntimeSecs) - _stopwatch.Elapsed),FieldWidth}");
         Console.WriteLine($"Total operations: {totalOps,FieldWidth:N0}");
-        Console.WriteLine($"Ops per Second:   {_stats["OperationsPerSec"],FieldWidth:N0}");
+        Console.WriteLine($"Ops per Second:   {opsPerSecond,FieldWidth:N0}");
         Console.WriteLine("==========================================================");
     }
 
     private void PrintFinalStats()
     {
-        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysExpired"];
+        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
+        var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
+        var currentKeys = _stats["KeysInserted"] - _stats["KeysRemoved"];
         Console.Clear();
         Console.WriteLine("========== CodeCargo NatsDistributedCache Test Summary ==========");
         Console.WriteLine($"Test completed at:    {DateTime.Now}");
         Console.WriteLine($"Total test duration:  {FormatElapsedTime(_stopwatch.Elapsed)}");
         Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Final Current Keys:   {_stats["CurrentKeys"],FieldWidth:N0}");
+        Console.WriteLine($"Final Current Keys:   {currentKeys,FieldWidth:N0}");
         Console.WriteLine($"Total Keys Inserted:  {_stats["KeysInserted"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
-        Console.WriteLine($"Total Keys Expired:   {_stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Total Keys Removed:   {_stats["KeysRemoved"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
         Console.WriteLine($"Total operations:     {totalOps,FieldWidth:N0}");
-        Console.WriteLine($"Average Ops/Second:   {_stats["OperationsPerSec"],FieldWidth:N0}");
+        Console.WriteLine($"Average Ops/Second:   {opsPerSecond,FieldWidth:N0}");
         Console.WriteLine("==========================================================");
 
         // Also log memory usage
