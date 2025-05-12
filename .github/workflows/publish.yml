@@ -1,11 +1,13 @@
-name: Publish Release to GitHub Packages
+name: Publish
 
 on:
   push:
     tags:
       - "v*.*.*"
+      - "v*.*.*-*"
 
 permissions:
+  contents: read
   packages: write
 
 defaults:
@@ -13,7 +15,9 @@ defaults:
     shell: bash
 
 jobs:
-  publish:
+  nuget:
+    name: NuGet
+    environment: nuget
     runs-on: ubuntu-latest
 
     steps:
@@ -24,18 +28,18 @@ jobs:
       with:
         dotnet-version: 8.x.x
 
-    - name: Build and strong name
-      run: dotnet build --configuration Release --no-incremental -p:version=${GITHUB_REF#refs/*/v} -p:SignAssembly=true -p:AssemblyOriginatorKeyFile=../key.snk
-
+    - name: Write strong name key file
+      run: |
+        set +x # Disable command echoing for security
+        echo "$STRONG_NAME_KEY" > NatsDistributedCache.snk
+        chmod 600 NatsDistributedCache.snk
+      env:
+        STRONG_NAME_KEY: ${{secrets.STRONG_NAME_KEY}}
+        
     - name: Pack SDK
-      run: dotnet pack -p:version=${GITHUB_REF#refs/*/v} -o ./publish
+      run: dotnet pack -c Release -p:version=${GITHUB_REF#refs/*/v} -o ./publish
 
-    - name: Configure NuGet source
-      run: dotnet nuget add source --username ${GITHUB_REPOSITORY_OWNER} --password ${GITHUB_TOKEN} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json"
+    - name: Publish to NuGet.org
+      run: dotnet nuget push ./publish/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
       env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-
-    - name: Publish to GitHub Packages
-      run: dotnet nuget push ./publish/*.nupkg --skip-duplicate --source github
-      env:
-        NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        NUGET_API_KEY: ${{secrets.NUGET_API_KEY}}
