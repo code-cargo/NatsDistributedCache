@@ -1,4 +1,4 @@
-![NuGet Version](https://img.shields.io/nuget/v/CodeCargo.Nats.DistributedCache?cacheSeconds=3600&color=516bf1)
+[![NuGet Version](https://img.shields.io/nuget/v/CodeCargo.Nats.DistributedCache?cacheSeconds=3600&color=516bf1)](https://www.nuget.org/packages/CodeCargo.Nats.DistributedCache/)
 
 # CodeCargo.Nats.DistributedCache
 
