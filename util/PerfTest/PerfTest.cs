@@ -26,6 +26,7 @@ public class PerfTest
     private const int RetrieveDelayMs = 5;
     private const int RemoveDelayMs = 50;
     private const int StatsUpdateIntervalMs = 500;
+    private const int StatsPrintIntervalMs = 1000;
 
     // Dependencies
     private readonly INatsConnection _nats;
@@ -105,7 +106,6 @@ public class PerfTest
                 // Ignore
             }
 
-            // Print final stats
             PrintFinalStats();
         }
     }
@@ -150,7 +150,7 @@ public class PerfTest
                         for (var j = 0; j < BatchSize && i + j < NumCacheItems && !ct.IsCancellationRequested; j++)
                         {
                             var key = $"BatchNum{i}IndividualNum{j}";
-                            var data = GenerateRandomData(ValueDataSizeBytes); // 256 byte values
+                            var data = GenerateRandomData(ValueDataSizeBytes);
 
                             try
                             {
@@ -165,8 +165,6 @@ public class PerfTest
                                 {
                                     _activeKeys.Add(key);
                                 }
-
-                                // Note: actual count is tracked by the watcher
                             }
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
@@ -174,7 +172,6 @@ public class PerfTest
                             }
                         }
 
-                        // Small delay between batches
                         await Task.Delay(InsertDelayMs, ct);
                     }
                 }
@@ -197,7 +194,7 @@ public class PerfTest
                     while (!ct.IsCancellationRequested)
                     {
                         await ProcessSingleRetrievalAsync(ct);
-                        await Task.Delay(RetrieveDelayMs, ct); // Small delay between retrievals
+                        await Task.Delay(RetrieveDelayMs, ct);
                     }
                 }
                 catch (OperationCanceledException)
@@ -259,7 +256,7 @@ public class PerfTest
             {
                 try
                 {
-                    // Wait a bit before starting expiry operations
+                    // Wait a bit before starting removal operations
                     await Task.Delay(2000, ct);
 
                     while (!ct.IsCancellationRequested)
@@ -281,8 +278,6 @@ public class PerfTest
                             try
                             {
                                 await _cache.RemoveAsync(key, ct);
-
-                                // Note: actual count is tracked by the watcher
                             }
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
@@ -290,7 +285,7 @@ public class PerfTest
                             }
                         }
 
-                        await Task.Delay(RemoveDelayMs, ct); // Less frequent expiry operations
+                        await Task.Delay(RemoveDelayMs, ct);
                     }
                 }
                 catch (OperationCanceledException)
@@ -369,14 +364,11 @@ public class PerfTest
                 {
                     while (!ct.IsCancellationRequested)
                     {
-                        // Clear console
                         Console.Clear();
-
-                        // Print current statistics
                         PrintProgress();
 
                         // Wait before printing again
-                        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                        await Task.Delay(TimeSpan.FromMilliseconds(StatsPrintIntervalMs), ct);
                     }
                 }
                 catch (OperationCanceledException)
@@ -420,8 +412,8 @@ public class PerfTest
         Console.WriteLine($"Total Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
         Console.WriteLine($"Total Keys Removed:   {_stats["KeysRemoved"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Cache Hits:       {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine($"Cache Misses:     {_stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Cache Hits:           {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
+        Console.WriteLine($"Cache Misses:         {_stats["KeysExpired"],FieldWidth:N0}");
         Console.WriteLine("----------------------------------------------------------");
         Console.WriteLine($"Total operations:     {totalOps,FieldWidth:N0}");
         Console.WriteLine($"Average Ops/Second:   {opsPerSecond,FieldWidth:N0}");
