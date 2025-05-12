@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache.UnitTests;
+namespace CodeCargo.Nats.DistributedCache.UnitTests;
 
 public abstract class TestBase
 {

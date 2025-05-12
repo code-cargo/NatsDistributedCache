@@ -369,7 +369,7 @@
           "xunit.v3.runner.common": "[2.0.2]"
         }
       },
-      "codecargo.natsdistributedcache": {
+      "natsdistributedcache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
@@ -381,9 +381,9 @@
       "testutils": {
         "type": "Project",
         "dependencies": {
-          "CodeCargo.NatsDistributedCache": "[1.0.0, )",
           "Microsoft.Extensions.Logging": "[9.0.4, )",
           "NATS.Net": "[2.6.0, )",
+          "NatsDistributedCache": "[1.0.0, )",
           "xunit.v3.assert": "[2.0.2, )",
           "xunit.v3.extensibility.core": "[2.0.2, )"
         }

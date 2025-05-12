@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache
+namespace CodeCargo.Nats.DistributedCache
 {
     /// <summary>
     /// Extension methods for setting up NATS distributed cache related services in an <see cref="IServiceCollection" />.

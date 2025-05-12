@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Nullable>enable</Nullable>
-    <RootNamespace>CodeCargo.NatsDistributedCache</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache</RootNamespace>
     <Description>NATS implementation of Microsoft.Extensions.Caching.Distributed.IDistributedCache.</Description>
     <PackageTags>cache;caching;distributed;nats</PackageTags>
   </PropertyGroup>

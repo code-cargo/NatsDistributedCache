@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace CodeCargo.NatsDistributedCache;
+namespace CodeCargo.Nats.DistributedCache;
 
 public partial class NatsCache
 {

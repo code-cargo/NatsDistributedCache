@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
 public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {

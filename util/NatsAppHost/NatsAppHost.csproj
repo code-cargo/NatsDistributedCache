@@ -5,11 +5,11 @@
   <PropertyGroup>
     <IsAspireHost>true</IsAspireHost>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.NatsDistributedCache.NatsAppHost</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.NatsAppHost</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CodeCargo.NatsDistributedCache\CodeCargo.NatsDistributedCache.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="..\..\src\NatsDistributedCache\NatsDistributedCache.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
   <ItemGroup>

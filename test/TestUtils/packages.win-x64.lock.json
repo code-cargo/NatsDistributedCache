@@ -237,7 +237,7 @@
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0"
         }
       },
-      "codecargo.natsdistributedcache": {
+      "natsdistributedcache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
