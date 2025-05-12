@@ -5,7 +5,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCargo.NatsDistributedCache", "src\CodeCargo.NatsDistributedCache\CodeCargo.NatsDistributedCache.csproj", "{6DA43760-9D03-493E-BA97-AB6AF4C6F8BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NatsDistributedCache", "src\NatsDistributedCache\NatsDistributedCache.csproj", "{6DA43760-9D03-493E-BA97-AB6AF4C6F8BA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{0C88DD14-F956-CE84-757C-A364CCF449FC}"
 EndProject

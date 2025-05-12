@@ -1,4 +1,4 @@
-# CodeCargo.NatsDistributedCache
+# CodeCargo.Nats.DistributedCache
 
 ## Updating Packages
 

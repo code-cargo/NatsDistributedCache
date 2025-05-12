@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache;
+namespace CodeCargo.Nats.DistributedCache;
 
 public readonly struct NatsHybridCacheSerializer<T>(INatsSerialize<T> serializer, INatsDeserialize<T> deserializer)
     : IHybridCacheSerializer<T>

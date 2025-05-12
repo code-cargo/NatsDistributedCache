@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache
+namespace CodeCargo.Nats.DistributedCache
 {
     internal sealed class NatsCacheImpl : NatsCache
     {

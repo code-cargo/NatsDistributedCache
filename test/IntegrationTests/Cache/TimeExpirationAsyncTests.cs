@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
 public class TimeExpirationAsyncTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {

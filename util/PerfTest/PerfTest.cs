@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache.PerfTest;
+namespace CodeCargo.Nats.DistributedCache.PerfTest;
 
 public class PerfTest
 {
