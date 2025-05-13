@@ -1,10 +1,12 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using CodeCargo.Nats.DistributedCache;
 using CodeCargo.Nats.DistributedCache.PerfTest;
 using CodeCargo.Nats.DistributedCache.TestUtils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
+using NATS.Client.JetStream.Models;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
@@ -40,6 +42,7 @@ var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
     services.AddNatsTestClient(natsConnectionString);
+    services.AddNatsDistributedCache(options => options.BucketName = "cache");
     services.AddScoped<PerfTest>();
 });
 
@@ -52,13 +55,20 @@ Console.WriteLine("Creating KV store...");
 var nats = host.Services.GetRequiredService<INatsConnection>();
 var kv = nats.CreateKeyValueStoreContext();
 await kv.CreateOrUpdateStoreAsync(
-    new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) },
+    new NatsKVConfig("cache")
+    {
+        LimitMarkerTTL = TimeSpan.FromSeconds(1),
+        Storage = NatsKVStorageType.Memory
+    },
     startupCts.Token);
+await nats
+    .CreateJetStreamContext()
+    .PurgeStreamAsync("KV_cache", new StreamPurgeRequest(), startupCts.Token);
 Console.WriteLine("KV store created");
 
 // Run the host
 Console.WriteLine("Starting app...");
-var appCts = new CancellationTokenSource();
+using var appCts = new CancellationTokenSource();
 var appTask = Task.Run(async () =>
 {
     try
@@ -119,7 +129,7 @@ finally
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"Error stopping application: {ex.Message}");
+        await Console.Error.WriteLineAsync($"Error stopping application: {ex.Message}");
     }
 
     await aspireApp.DisposeAsync();
