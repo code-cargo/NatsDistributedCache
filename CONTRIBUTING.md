@@ -1,5 +1,28 @@
 # Contributing
 
+## Dependencies
+
+- .NET 8+ SDK
+- Docker or Docker Desktop - The tests use Aspire to start a NATS Server Docker container
+
+## Project Directories
+
+- `src/NatsDistributedCache` - The main library (Class Library)
+- `test/TestUtils`: Test utilities (Class Library)
+- `test/UnitTests`: Unit tests (XUnit)
+  ```bash
+  dotnet test test/UnitTests/UnitTests.csproj
+  ```
+- `test/IntegrationTests`: Integration tests (XUnit)
+  ```bash
+  dotnet test test/IntegrationTests/IntegrationTests.csproj
+  ```
+- `util/NatsAppHost`: NATS app host (Aspire AppHost)
+- `util/PerfTest`: Performance tests (Exe) - make sure to run in Release mode
+  ```bash
+  dotnet run -c Release --project util/PerfTest/PerfTest.csproj
+  ```
+
 ## Updating Packages
 
 Use the `dotnet outdated` tool to update packages in `.csproj` files. When updating packages in a project with lock
@@ -7,6 +30,9 @@ files, always use the `-n` flag to prevent automatic restoration. To update tool
 `.config/dotnet-tools.json`.
 
 ```bash
+# run to install/update the tool
+dotnet tool restore
+
 # all updates
 # view
 dotnet outdated
