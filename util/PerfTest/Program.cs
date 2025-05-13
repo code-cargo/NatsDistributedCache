@@ -6,6 +6,7 @@ using CodeCargo.Nats.DistributedCache.TestUtils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
+using NATS.Client.JetStream.Models;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
@@ -54,8 +55,14 @@ Console.WriteLine("Creating KV store...");
 var nats = host.Services.GetRequiredService<INatsConnection>();
 var kv = nats.CreateKeyValueStoreContext();
 await kv.CreateOrUpdateStoreAsync(
-    new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) },
+    new NatsKVConfig("cache")
+    {
+        LimitMarkerTTL = TimeSpan.FromSeconds(1), Storage = NatsKVStorageType.Memory
+    },
     startupCts.Token);
+await nats
+    .CreateJetStreamContext()
+    .PurgeStreamAsync("KV_cache", new StreamPurgeRequest(), startupCts.Token);
 Console.WriteLine("KV store created");
 
 // Run the host

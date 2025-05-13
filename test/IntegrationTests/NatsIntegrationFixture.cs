@@ -65,7 +65,10 @@ public class NatsIntegrationFixture : IAsyncLifetime
         // create the KV store
         var kvContext = NatsConnection.CreateKeyValueStoreContext();
         await kvContext.CreateOrUpdateStoreAsync(
-            new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1), },
+            new NatsKVConfig("cache")
+            {
+                LimitMarkerTTL = TimeSpan.FromSeconds(1), Storage = NatsKVStorageType.Memory
+            },
             TestContext.Current.CancellationToken);
     }
 
