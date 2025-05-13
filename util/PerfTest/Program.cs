@@ -57,7 +57,8 @@ var kv = nats.CreateKeyValueStoreContext();
 await kv.CreateOrUpdateStoreAsync(
     new NatsKVConfig("cache")
     {
-        LimitMarkerTTL = TimeSpan.FromSeconds(1), Storage = NatsKVStorageType.Memory
+        LimitMarkerTTL = TimeSpan.FromSeconds(1),
+        Storage = NatsKVStorageType.Memory
     },
     startupCts.Token);
 await nats
