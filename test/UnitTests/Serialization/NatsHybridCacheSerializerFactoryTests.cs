@@ -1,8 +1,6 @@
 using System.Buffers;
-using Microsoft.Extensions.Caching.Hybrid;
 using Moq;
 using NATS.Client.Core;
-using NATS.Net;
 
 namespace CodeCargo.Nats.DistributedCache.UnitTests.Serialization;
 
