@@ -16,12 +16,13 @@ public static class NatsTestExtensions
 
     public static IServiceCollection AddHybridCacheTestClient(this IServiceCollection services)
     {
-        // (Optional) Add HybridCache
+        // Add HybridCache
         var hybridCacheServices = services.AddHybridCache();
 
-        // (Optional) Use NATS Serializer for HybridCache
-        // hybridCacheServices.AddSerializerFactory(
-        //   options.SerializerRegistry.ToHybridCacheSerializerFactory());
+        // Use NATS Serializer for HybridCache
+        var natsOpts = NatsOpts.Default;
+        hybridCacheServices.AddSerializerFactory(
+          natsOpts.SerializerRegistry.ToHybridCacheSerializerFactory());
         return services;
     }
 }
