@@ -60,7 +60,7 @@ Console.WriteLine("KV store created");
 
 // Run the host
 Console.WriteLine("Starting app...");
-var appCts = new CancellationTokenSource();
+using var appCts = new CancellationTokenSource();
 var appTask = Task.Run(async () =>
 {
     try
@@ -121,7 +121,7 @@ finally
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"Error stopping application: {ex.Message}");
+        await Console.Error.WriteLineAsync($"Error stopping application: {ex.Message}");
     }
 
     await aspireApp.DisposeAsync();

@@ -6,7 +6,7 @@ namespace CodeCargo.Nats.DistributedCache.PerfTest;
 
 public class PerfTest
 {
-    private const int NumKeys = 100_000;
+    private const int NumKeys = 20_000;
     private const int ValueSizeBytes = 128;
     private static readonly int ParallelTasks = Environment.ProcessorCount;
     private static readonly TimeSpan ProgressUpdateInterval = TimeSpan.FromMilliseconds(250);
@@ -179,6 +179,7 @@ public class PerfTest
         }
         catch (OperationCanceledException)
         {
+            // ignore OperationCanceledException
         }
     }
 
@@ -263,7 +264,7 @@ public class PerfTest
     /// <summary>
     /// Represents a stage in the performance test with real-time statistics
     /// </summary>
-    private class Stage
+    private sealed class Stage
     {
         private readonly Stopwatch _duration = new();
         private readonly SortedSet<long> _sortedTicks = new();
