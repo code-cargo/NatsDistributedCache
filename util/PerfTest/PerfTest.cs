@@ -1,429 +1,338 @@
-using System.Buffers;
-using System.Collections.Concurrent;
 using System.Diagnostics;
+using CodeCargo.Nats.DistributedCache.PerfTest.Utils;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using NATS.Client.Core;
-using NATS.Client.KeyValueStore;
-using NATS.Net;
 
 namespace CodeCargo.Nats.DistributedCache.PerfTest;
 
-/// <summary>
-/// Performance test for NatsCache that tracks cache operations
-/// </summary>
 public class PerfTest
 {
-    // Configuration
-    private const int MaxTestRuntimeSecs = 60;
-    private const int NumCacheItems = 10_000;
-    private const int FieldWidth = 12;
-    private const int BatchSize = 100;
-    private const int ValueDataSizeBytes = 256;
-    private const int AbsoluteExpirationSecs = 10;
-    private const int InsertDelayMs = 10;
-    private const int RetrieveDelayMs = 5;
-    private const int RemoveDelayMs = 50;
-    private const int StatsUpdateIntervalMs = 500;
-    private const int StatsPrintIntervalMs = 1000;
+    private const int NumKeys = 100_000;
+    private const int ValueSizeBytes = 128;
+    private static readonly int ParallelTasks = Environment.ProcessorCount;
+    private static readonly TimeSpan ProgressUpdateInterval = TimeSpan.FromMilliseconds(250);
 
-    // Dependencies
-    private readonly INatsConnection _nats;
-    private readonly NatsCache _cache;
+    private readonly IDistributedCache _cache;
+    private readonly string[] _keys;
+    private readonly byte[] _valuePayload;
+    private readonly List<Stage> _stages = new();
 
-    // Stats tracking
-    private readonly Stopwatch _stopwatch = new();
-    private readonly ConcurrentDictionary<string, long> _stats = new();
-    private readonly List<string> _activeKeys = [];
-    private readonly Random _random = new(42); // Fixed seed for reproducibility
-
-    // Operation tracking via kvstore watcher
-    private readonly SemaphoreSlim _watchLock = new(1, 1);
-    private NatsKVStore? _kvStore;
-
-    public PerfTest(INatsConnection nats)
+    public PerfTest(IDistributedCache cache)
     {
-        _nats = nats;
+        _cache = cache;
 
-        var options = Options.Create(new NatsCacheOptions
+        // Pre-generate unique keys
+        _keys = new string[NumKeys];
+        for (var i = 0; i < NumKeys; i++)
         {
-            BucketName = "cache"
-        });
+            _keys[i] = i.ToString();
+        }
 
-        _cache = new NatsCache(options, NullLogger<NatsCache>.Instance, nats);
-
-        // Initialize statistics counters
-        _stats["KeysInserted"] = 0;
-        _stats["KeysRetrieved"] = 0;
-        _stats["KeysRemoved"] = 0;
-        _stats["KeysExpired"] = 0;
+        // Prepare a sample value payload filled with the character '0'
+        _valuePayload = new byte[ValueSizeBytes];
+        Array.Fill(_valuePayload, (byte)'0'); // Fill with ASCII character '0' (value 48)
     }
 
-    public async Task Run(CancellationToken cancellationToken)
+    public async Task Run(CancellationToken ct)
     {
-        Console.WriteLine($"Starting CodeCargo NatsDistributedCache Performance Test - {DateTime.Now}");
-        Console.WriteLine($"Testing with {NumCacheItems} cache items");
+        // Clear stages for a new run
+        _stages.Clear();
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(MaxTestRuntimeSecs));
+        // Run all stages sequentially
+        await RunStage("Insert", SetWithAbsoluteExpiry, ct);
+        await RunStage("Get", GetOperation, ct);
+        await RunStage("Update", SetWithSlidingExpiry, ct);
+        await RunStage("Get (refresh)", GetOperation, ct);
+        await RunStage("Delete", DeleteOperation, ct);
 
-        // Create and connect the watcher to track operations
-        await InitializeWatcher(cts.Token);
+        // Final display with results
+        Console.Clear();
+        PrintResults();
+    }
 
-        // Start timer
-        _stopwatch.Start();
+    private async Task<TimeSpan> SetWithAbsoluteExpiry(string key, CancellationToken ct)
+    {
+        using var sw = StopwatchPool.Rent();
+        var options = new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) };
+        await _cache.SetAsync(key, _valuePayload, options, ct);
+        sw.Stop();
+        return sw.Elapsed;
+    }
 
-        // Create tasks for the test operations
-        var printTask = StartPrintTask(cts.Token);
-        var watchTask = StartWatchTask(cts.Token);
-        var insertTask = StartInsertTask(cts.Token);
-        var retrieveTask = StartRetrieveTask(cts.Token);
-        var removeTask = StartRemoveTask(cts.Token);
+    private async Task<TimeSpan> GetOperation(string key, CancellationToken ct)
+    {
+        using var sw = StopwatchPool.Rent();
+        await _cache.GetAsync(key, ct);
+        sw.Stop();
+        return sw.Elapsed;
+    }
 
+    private async Task<TimeSpan> SetWithSlidingExpiry(string key, CancellationToken ct)
+    {
+        using var sw = StopwatchPool.Rent();
+        var options = new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10) };
+        await _cache.SetAsync(key, _valuePayload, options, ct);
+        sw.Stop();
+        return sw.Elapsed;
+    }
+
+    private async Task<TimeSpan> DeleteOperation(string key, CancellationToken ct)
+    {
+        using var sw = StopwatchPool.Rent();
+        await _cache.RemoveAsync(key, ct);
+        sw.Stop();
+        return sw.Elapsed;
+    }
+
+    // Core method to run a batch of operations in parallel and collect metrics
+    private async Task RunStage(
+        string stageName,
+        Func<string, CancellationToken, Task<TimeSpan>> operationFunc,
+        CancellationToken ct)
+    {
+        // Create a new stage and add it to the collection
+        var stage = new Stage(stageName);
+        _stages.Add(stage);
+
+        var totalOps = NumKeys;
+        var completedOps = 0;
+
+        // Start stage timing
+        stage.StartTiming();
+
+        // Start a background progress updater task
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var progressTask = Task.Run(
+            async () =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    var done = Volatile.Read(ref completedOps);
+                    var percent = (done * 100.0) / totalOps;
+
+                    // Get a snapshot of the current progress state
+                    var progressLine = $"{stageName}: {done,8:N0}/{totalOps:N0} completed ({percent,6:F2}%)";
+
+                    // First calculate all needed values, then clear and print
+                    Console.Clear();
+
+                    // Print the current results table
+                    PrintResults();
+
+                    // Print progress indicator below table with a newline
+                    Console.WriteLine();
+                    Console.WriteLine(progressLine);
+
+                    if (done >= totalOps)
+                        break;
+
+                    await Task.Delay(ProgressUpdateInterval, cts.Token).ConfigureAwait(false);
+                }
+            },
+            cts.Token);
+
+        // Launch parallel worker tasks
+        var tasks = new Task[ParallelTasks];
+        var nextKeyIndex = 0;
+        for (var t = 0; t < ParallelTasks; t++)
+        {
+            // Determine the range of keys this task will handle
+            var chunkSize = totalOps / ParallelTasks;
+            if (t < totalOps % ParallelTasks)
+            {
+                // distribute remainder keys one per task (for first few tasks)
+                chunkSize++;
+            }
+
+            var startIndex = nextKeyIndex;
+            var endIndex = startIndex + chunkSize;
+            nextKeyIndex = endIndex;
+
+            tasks[t] = Task.Run(
+                async () =>
+                {
+                    for (var i = startIndex; i < endIndex && !ct.IsCancellationRequested; i++)
+                    {
+                        // Perform the operation and record its duration
+                        var elapsed = await operationFunc(_keys[i], ct).ConfigureAwait(false);
+
+                        // Add the operation duration to the stage
+                        stage.AddOperationDuration(elapsed);
+
+                        // Atomically increment the completed count for progress tracking
+                        Interlocked.Increment(ref completedOps);
+                    }
+                },
+                ct);
+        }
+
+        // Wait for all tasks to finish
+        await Task.WhenAll(tasks);
+        stage.StopTiming();
+
+        // Ensure progress task exits and wait for it
+        // Mark all ops completed for progress loop, in case it hasn't updated the final state yet
+        Volatile.Write(ref completedOps, totalOps);
+        await cts.CancelAsync();
         try
         {
-            // Wait for all tasks to complete or cancellation
-            await Task.WhenAll(watchTask, insertTask, retrieveTask, removeTask);
+            await progressTask;
         }
         catch (OperationCanceledException)
         {
-            // Expected when test completes
-        }
-        finally
-        {
-            // Stop stopwatch
-            _stopwatch.Stop();
-
-            // Make sure print task completes
-            await cts.CancelAsync();
-            try
-            {
-                await printTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // Ignore
-            }
-
-            PrintFinalStats();
         }
     }
 
-    private static string FormatElapsedTime(TimeSpan elapsed) =>
-        $"{Math.Floor(elapsed.TotalMinutes):00}:{elapsed.Seconds:00}.{elapsed.Milliseconds / 10:00}";
-
-    private byte[] GenerateRandomData(int size)
+    // Print the current results table
+    private void PrintResults(bool clearScreen = false)
     {
-        var data = new byte[size];
-        _random.NextBytes(data);
-        return data;
-    }
-
-    private async Task InitializeWatcher(CancellationToken ct)
-    {
-        await _watchLock.WaitAsync(ct);
-        try
+        if (clearScreen)
         {
-            if (_kvStore == null)
-            {
-                var jsContext = _nats.CreateJetStreamContext();
-                var kvContext = new NatsKVContext(jsContext);
-                _kvStore = (NatsKVStore)await kvContext.GetStoreAsync("cache", ct);
-            }
+            Console.Clear();
         }
-        finally
+
+        // Define table width constants
+        const int stageWidth = 15;
+        const int opsWidth = 12;
+        const int dataWidth = 10;
+        const int durationWidth = 12;
+        const int p50Width = 10;
+        const int p95Width = 10;
+        const int p99Width = 10;
+        const int totalWidth = stageWidth + 1 + opsWidth + 1 + dataWidth + 1 + durationWidth + 1 + p50Width + 1 +
+                               p95Width + 1 + p99Width;
+
+        // Print header
+        Console.WriteLine(
+            "{0,-" + stageWidth + "} {1," + opsWidth + "} {2," + dataWidth + "} {3," + durationWidth + "} {4," +
+            p50Width + "} {5," + p95Width + "} {6," + p99Width + "}",
+            "Stage",
+            "Operations",
+            "Data (MiB)",
+            "Duration (s)",
+            "P50 (ms)",
+            "P95 (ms)",
+            "P99 (ms)");
+        Console.WriteLine(new string('-', totalWidth));
+
+        // Print each stage result in aligned columns
+        long totalOperations = 0;
+        double totalDuration = 0;
+        double totalDataMiB = 0;
+
+        foreach (var stage in _stages)
         {
-            _watchLock.Release();
+            var operations = stage.Operations;
+            totalOperations += operations;
+            totalDuration += stage.Duration.TotalSeconds;
+
+            // Calculate data size in MiB
+            var dataMiB = (operations * (long)ValueSizeBytes) / (1024.0 * 1024.0);
+            totalDataMiB += dataMiB;
+
+            Console.WriteLine(
+                "{0,-" + stageWidth + "} {1," + opsWidth + ":N0} {2," + dataWidth + ":F2} {3," + durationWidth +
+                ":F2} {4," + p50Width + ":F2} {5," + p95Width + ":F2} {6," + p99Width + ":F2}",
+                stage.Name,
+                operations,
+                dataMiB,
+                stage.Duration.TotalSeconds,
+                stage.GetPercentile(50),
+                stage.GetPercentile(95),
+                stage.GetPercentile(99));
         }
-    }
 
-    private Task StartInsertTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
-            {
-                try
-                {
-                    for (var i = 0; i < NumCacheItems && !ct.IsCancellationRequested; i++)
-                    {
-                        // Create a batch of items
-                        for (var j = 0; j < BatchSize && i + j < NumCacheItems && !ct.IsCancellationRequested; j++)
-                        {
-                            var key = $"BatchNum{i}IndividualNum{j}";
-                            var data = GenerateRandomData(ValueDataSizeBytes);
-
-                            try
-                            {
-                                var options = new DistributedCacheEntryOptions
-                                {
-                                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(AbsoluteExpirationSecs),
-                                };
-
-                                await _cache.SetAsync(key, data, options, ct);
-
-                                lock (_activeKeys)
-                                {
-                                    _activeKeys.Add(key);
-                                }
-                            }
-                            catch (Exception ex) when (ex is not OperationCanceledException)
-                            {
-                                Console.WriteLine($"Insert error: {ex.Message}");
-                            }
-                        }
-
-                        await Task.Delay(InsertDelayMs, ct);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-            },
-            ct);
-
-    private Task StartRetrieveTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
-            {
-                try
-                {
-                    // Wait a bit before starting retrieval operations
-                    await Task.Delay(1000, ct);
-
-                    while (!ct.IsCancellationRequested)
-                    {
-                        await ProcessSingleRetrievalAsync(ct);
-                        await Task.Delay(RetrieveDelayMs, ct);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-            },
-            ct);
-
-    private async Task ProcessSingleRetrievalAsync(CancellationToken ct)
-    {
-        var (key, index) = GetRandomActiveKey();
-        if (key == null)
-            return;
-
-        try
+        // Add totals row if we have results
+        if (_stages.Count > 0)
         {
-            var result = await _cache.GetAsync(key, ct);
-            _stats.AddOrUpdate("KeysRetrieved", 1, (_, count) => count + 1);
-
-            if (result == null)
-            {
-                _stats.AddOrUpdate("KeysExpired", 1, (_, count) => count + 1);
-                RemoveExpiredKeyFromActiveList(index);
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Console.WriteLine($"Retrieve error: {ex.Message}");
+            // Print totals row
+            Console.WriteLine(new string('-', totalWidth));
+            Console.WriteLine(
+                "{0,-" + stageWidth + "} {1," + opsWidth + ":N0} {2," + dataWidth + ":F2} {3," + durationWidth +
+                ":F2} {4," + p50Width + "} {5," + p95Width + "} {6," + p99Width + "}",
+                "Total",
+                totalOperations,
+                totalDataMiB,
+                totalDuration,
+                string.Empty,
+                string.Empty,
+                string.Empty);
+            Console.WriteLine(new string('-', totalWidth));
         }
     }
 
-    private (string? Key, int Index) GetRandomActiveKey()
+    /// <summary>
+    /// Represents a stage in the performance test with real-time statistics
+    /// </summary>
+    private class Stage
     {
-        lock (_activeKeys)
-        {
-            if (_activeKeys.Count == 0)
-                return (null, -1);
+        private readonly Stopwatch _duration = new();
+        private readonly SortedSet<long> _sortedTicks = new();
+        private readonly object _syncLock = new();
+        private int _totalOps = 0;
 
-            var index = _random.Next(_activeKeys.Count);
-            return (_activeKeys[index], index);
+        public Stage(string name)
+        {
+            Name = name;
         }
-    }
 
-    private void RemoveExpiredKeyFromActiveList(int index)
-    {
-        lock (_activeKeys)
+        /// <summary>
+        /// Gets the name of this stage
+        /// </summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// Gets the number of operations completed so far
+        /// </summary>
+        public int Operations => _totalOps;
+
+        /// <summary>
+        /// Gets the total duration of this stage
+        /// </summary>
+        public TimeSpan Duration => _duration.Elapsed;
+
+        /// <summary>
+        /// Starts timing this stage
+        /// </summary>
+        public void StartTiming() => _duration.Start();
+
+        /// <summary>
+        /// Stops timing this stage
+        /// </summary>
+        public void StopTiming() => _duration.Stop();
+
+        /// <summary>
+        /// Adds a single operation duration to the statistics
+        /// </summary>
+        public void AddOperationDuration(TimeSpan duration)
         {
-            if (index >= 0 && index < _activeKeys.Count)
+            // Store ticks instead of TimeSpan to reduce memory overhead
+            var ticks = duration.Ticks;
+
+            lock (_syncLock)
             {
-                _activeKeys.RemoveAt(index);
+                _sortedTicks.Add(ticks);
+                _totalOps++;
             }
         }
-    }
 
-    private Task StartRemoveTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
-            {
-                try
-                {
-                    // Wait a bit before starting removal operations
-                    await Task.Delay(2000, ct);
-
-                    while (!ct.IsCancellationRequested)
-                    {
-                        string? key = null;
-
-                        lock (_activeKeys)
-                        {
-                            if (_activeKeys.Count > 0)
-                            {
-                                var index = _random.Next(_activeKeys.Count);
-                                key = _activeKeys[index];
-                                _activeKeys.RemoveAt(index);
-                            }
-                        }
-
-                        if (key != null)
-                        {
-                            try
-                            {
-                                await _cache.RemoveAsync(key, ct);
-                            }
-                            catch (Exception ex) when (ex is not OperationCanceledException)
-                            {
-                                Console.WriteLine($"Remove error: {ex.Message}");
-                            }
-                        }
-
-                        await Task.Delay(RemoveDelayMs, ct);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-            },
-            ct);
-
-    private Task StartWatchTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
-            {
-                try
-                {
-                    if (_kvStore == null)
-                    {
-                        Console.WriteLine("KV Store not initialized");
-                        return;
-                    }
-
-                    var opsBuffer = new List<NatsKVOperation>();
-                    var statsUpdateInterval = TimeSpan.FromMilliseconds(StatsUpdateIntervalMs);
-                    var lastStatsUpdate = DateTimeOffset.Now;
-
-                    await foreach (var entry in _kvStore.WatchAsync<ReadOnlySequence<byte>>(
-                                       ">",
-                                       opts: new NatsKVWatchOpts { MetaOnly = true },
-                                       cancellationToken: ct))
-                    {
-                        opsBuffer.Add(entry.Operation);
-                        if (DateTimeOffset.Now - lastStatsUpdate <= statsUpdateInterval)
-                        {
-                            await UpdateStatsIfNeeded(opsBuffer);
-                            lastStatsUpdate = DateTimeOffset.Now;
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Watch error: {ex.Message}");
-                }
-            },
-            ct);
-
-    private Task UpdateStatsIfNeeded(List<NatsKVOperation> opsBuffer)
-    {
-        // Process the buffer and update stats
-        // Read operations are tracked directly in StartRetrieveTask
-        var puts = opsBuffer.Count(op => op == NatsKVOperation.Put);
-        var deletes = opsBuffer.Count(op => op == NatsKVOperation.Del);
-
-        if (puts > 0)
+        /// <summary>
+        /// Gets the requested percentile of operation durations in milliseconds
+        /// </summary>
+        public double GetPercentile(double percentile)
         {
-            _stats.AddOrUpdate("KeysInserted", puts, (_, count) => count + puts);
-        }
-
-        if (deletes > 0)
-        {
-            _stats.AddOrUpdate("KeysRemoved", deletes, (_, count) => count + deletes);
-        }
-
-        opsBuffer.Clear();
-        return Task.CompletedTask;
-    }
-
-    private Task StartPrintTask(CancellationToken ct) =>
-        Task.Run(
-            async () =>
+            lock (_syncLock)
             {
-                try
-                {
-                    while (!ct.IsCancellationRequested)
-                    {
-                        Console.Clear();
-                        PrintProgress();
+                // If we have no operations yet, return 0
+                if (_sortedTicks.Count == 0)
+                    return 0;
 
-                        // Wait before printing again
-                        await Task.Delay(TimeSpan.FromMilliseconds(StatsPrintIntervalMs), ct);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-            },
-            ct);
+                // Calculate the index for the requested percentile
+                var idx = (int)Math.Ceiling(percentile / 100.0 * _sortedTicks.Count) - 1;
+                idx = Math.Max(0, Math.Min(idx, _sortedTicks.Count - 1));
 
-    private void PrintProgress()
-    {
-        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
-        var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
-        Console.WriteLine("========== CodeCargo NatsDistributedCache Performance ==========");
-        Console.WriteLine($"Current Keys:     {_activeKeys.Count,FieldWidth:N0}");
-        Console.WriteLine($"Keys Inserted:    {_stats["KeysInserted"],FieldWidth:N0}");
-        Console.WriteLine($"Keys Retrieved:   {_stats["KeysRetrieved"],FieldWidth:N0}");
-        Console.WriteLine($"Keys Removed:     {_stats["KeysRemoved"],FieldWidth:N0}");
-        Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Cache Hits:       {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine($"Cache Misses:     {_stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Elapsed Time:     {FormatElapsedTime(_stopwatch.Elapsed),FieldWidth}");
-        Console.WriteLine($"Time Remaining:   {FormatElapsedTime(TimeSpan.FromSeconds(MaxTestRuntimeSecs) - _stopwatch.Elapsed),FieldWidth}");
-        Console.WriteLine($"Total operations: {totalOps,FieldWidth:N0}");
-        Console.WriteLine($"Ops per Second:   {opsPerSecond,FieldWidth:N0}");
-        Console.WriteLine("==========================================================");
-    }
-
-    private void PrintFinalStats()
-    {
-        var totalOps = _stats["KeysInserted"] + _stats["KeysRetrieved"] + _stats["KeysRemoved"];
-        var opsPerSecond = (long)(totalOps / _stopwatch.Elapsed.TotalSeconds);
-        Console.Clear();
-        Console.WriteLine("========== CodeCargo NatsDistributedCache Test Summary ==========");
-        Console.WriteLine($"Test completed at:    {DateTime.Now}");
-        Console.WriteLine($"Total test duration:  {FormatElapsedTime(_stopwatch.Elapsed)}");
-        Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Final Current Keys:   {_activeKeys.Count,FieldWidth:N0}");
-        Console.WriteLine($"Total Keys Inserted:  {_stats["KeysInserted"],FieldWidth:N0}");
-        Console.WriteLine($"Total Keys Retrieved: {_stats["KeysRetrieved"],FieldWidth:N0}");
-        Console.WriteLine($"Total Keys Removed:   {_stats["KeysRemoved"],FieldWidth:N0}");
-        Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Cache Hits:           {_stats["KeysRetrieved"] - _stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine($"Cache Misses:         {_stats["KeysExpired"],FieldWidth:N0}");
-        Console.WriteLine("----------------------------------------------------------");
-        Console.WriteLine($"Total operations:     {totalOps,FieldWidth:N0}");
-        Console.WriteLine($"Average Ops/Second:   {opsPerSecond,FieldWidth:N0}");
-        Console.WriteLine("==========================================================");
-
-        // Also log memory usage
-        var meg = Math.Pow(2, 20);
-        var memoryMiB = Process.GetCurrentProcess().PrivateMemorySize64 / meg;
-        var allocMiB = GC.GetTotalAllocatedBytes() / meg;
-        Console.WriteLine($"Memory Usage MiB: {memoryMiB,FieldWidth:N0}");
-        Console.WriteLine($"Total Alloc  MiB: {allocMiB,FieldWidth:N0}");
+                // Get the value at the specified index
+                return new TimeSpan(_sortedTicks.ElementAt(idx)).TotalMilliseconds;
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using CodeCargo.Nats.DistributedCache;
 using CodeCargo.Nats.DistributedCache.PerfTest;
 using CodeCargo.Nats.DistributedCache.TestUtils;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,7 @@ var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
     services.AddNatsTestClient(natsConnectionString);
+    services.AddNatsDistributedCache(options => options.BucketName = "cache");
     services.AddScoped<PerfTest>();
 });
 
