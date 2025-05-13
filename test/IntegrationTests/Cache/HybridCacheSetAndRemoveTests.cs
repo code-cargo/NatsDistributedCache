@@ -44,4 +44,27 @@ public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : Test
         result = await HybridCache.GetOrCreateAsync(key, async ct => await Task.FromResult(Array.Empty<byte>()));
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task HybridCacheSerializesDateTime()
+    {
+        // Arrange
+        var key = MethodKey();
+        var now = DateTime.UtcNow;
+
+        var options = new HybridCacheEntryOptions
+        {
+            Expiration = TimeSpan.FromMinutes(10)
+        };
+
+        // Act - Store the complex object in the cache
+        await HybridCache.SetAsync(key, now, options);
+
+        // Assert - Retrieve the object and verify it matches
+        var retrieved = await HybridCache.GetOrCreateAsync(key, async ct => await Task.FromResult(DateTime.UnixEpoch));
+        Assert.Equal(now, retrieved);
+
+        // Cleanup
+        await HybridCache.RemoveAsync(key);
+    }
 }
