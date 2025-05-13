@@ -6,6 +6,7 @@
     <LangVersion>latest</LangVersion>
     <NoWarn>$(NoWarn);SA0001</NoWarn>
     <IsPackable>false</IsPackable>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>
