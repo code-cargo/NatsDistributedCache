@@ -26,6 +26,14 @@ public class CacheEntry
 }
 
 /// <summary>
+/// JsonSerializerContext for CacheEntry
+/// </summary>
+[JsonSerializable(typeof(CacheEntry))]
+public partial class CacheEntryJsonContext : JsonSerializerContext
+{
+}
+
+/// <summary>
 /// Distributed cache implementation using NATS Key-Value Store.
 /// </summary>
 public partial class NatsCache : IBufferDistributedCache
@@ -363,9 +371,4 @@ public partial class NatsCache : IBufferDistributedCache
         await kvStore.DeleteAsync(GetPrefixedKey(key), natsKvDeleteOpts, cancellationToken: token)
             .ConfigureAwait(false);
     }
-}
-
-[JsonSerializable(typeof(CacheEntry))]
-internal partial class CacheEntryJsonContext : JsonSerializerContext
-{
 }

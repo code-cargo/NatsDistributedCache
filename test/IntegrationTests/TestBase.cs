@@ -1,9 +1,12 @@
 using System.Runtime.CompilerServices;
+using CodeCargo.Nats.DistributedCache.TestUtils;
 using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
+using NATS.Client.KeyValueStore;
 using NATS.Net;
 
 namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
@@ -41,6 +44,7 @@ public abstract class TestBase : IAsyncLifetime
 
         // Add the cache
         services.AddNatsDistributedCache(options => options.BucketName = "cache");
+        services.AddHybridCacheTestClient();
 
         // Build service provider
         ServiceProvider = services.BuildServiceProvider();
@@ -60,6 +64,11 @@ public abstract class TestBase : IAsyncLifetime
     /// Gets the cache from the service provider
     /// </summary>
     protected IDistributedCache Cache => ServiceProvider.GetRequiredService<IDistributedCache>();
+
+    /// <summary>
+    /// Gets the cache from the service provider
+    /// </summary>
+    protected HybridCache HybridCache => ServiceProvider.GetRequiredService<HybridCache>();
 
     /// <summary>
     /// Purge stream before test run

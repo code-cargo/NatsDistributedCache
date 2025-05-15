@@ -13,4 +13,16 @@ public static class NatsTestExtensions
                 Url = natsConnectionString,
                 RequestReplyMode = NatsRequestReplyMode.Direct,
             });
+
+    public static IServiceCollection AddHybridCacheTestClient(this IServiceCollection services)
+    {
+        // Add HybridCache
+        var hybridCacheServices = services.AddHybridCache();
+
+        // Use NATS Serializer for HybridCache
+        var natsOpts = NatsOpts.Default;
+        hybridCacheServices.AddSerializerFactory(
+          natsOpts.SerializerRegistry.ToHybridCacheSerializerFactory());
+        return services;
+    }
 }
