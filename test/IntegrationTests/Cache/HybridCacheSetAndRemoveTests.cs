@@ -76,7 +76,7 @@ public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : Test
 
         // HybridCache adds additional data to the front of the serialized value, so we're matching only the relevant data
         var length = serializedBytes.Length;
-        Assert.Equal(serializedBytes[^length], kvEntry.Value.Data[^length]);
+        Assert.Equivalent(serializedBytes[^length], kvEntry.Value.Data[^length], strict: true);
 
         // Assert - date is deserialized as expected
         var retrieved = await HybridCache.GetOrCreateAsync(key, async ct => await Task.FromResult(DateTime.UnixEpoch));
