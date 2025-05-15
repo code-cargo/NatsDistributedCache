@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
+using StreamJsonRpc;
 
 namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
@@ -67,16 +68,16 @@ public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : Test
         // Assert - date is serialized as expected
         var writer = new ArrayBufferWriter<byte>();
         new NatsUtf8PrimitivesSerializer<DateTime>().Serialize(writer, date);
-        var serializedBytes = writer.WrittenSpan.ToArray();
+        var serializedDateString = Encoding.UTF8.GetString(writer.WrittenSpan.ToArray());
 
         var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
         NatsJsonContextSerializer<CacheEntry> cacheEntrySerializer = new(CacheEntryJsonContext.Default);
         var kvEntry = await kvStore.GetEntryAsync(key, serializer: cacheEntrySerializer);
         Assert.NotNull(kvEntry.Value?.Data);
+        var storedDateString = Encoding.UTF8.GetString(kvEntry.Value.Data);
 
         // HybridCache adds additional data to the front of the serialized value, so we're matching only the relevant data
-        var length = serializedBytes.Length;
-        Assert.Equivalent(serializedBytes[^length], kvEntry.Value.Data[^length], strict: true);
+        Assert.Contains(serializedDateString, storedDateString);
 
         // Assert - date is deserialized as expected
         var retrieved = await HybridCache.GetOrCreateAsync(key, async ct => await Task.FromResult(DateTime.UnixEpoch));
