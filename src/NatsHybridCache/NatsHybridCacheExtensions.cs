@@ -1,10 +1,6 @@
 using CodeCargo.Nats.DistributedCache;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
 namespace CodeCargo.Nats.HybridCache;
@@ -29,10 +25,8 @@ public static class NatsHybridCacheExtensions
         object? connectionServiceKey = null)
     {
         services.AddNatsDistributedCache(configureOptions, connectionServiceKey);
-
         var builder = services.AddHybridCache();
-
-        builder.AddSerializerFactory(sp =>
+        builder.Services.AddSingleton<IHybridCacheSerializerFactory>(sp =>
         {
             var natsConnection = connectionServiceKey == null
                 ? sp.GetRequiredService<INatsConnection>()
