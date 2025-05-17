@@ -10,7 +10,7 @@ namespace CodeCargo.Nats.DistributedCache;
 /// <summary>
 /// Extension methods for setting up NATS distributed cache related services in an <see cref="IServiceCollection" />.
 /// </summary>
-public static class NatsCacheServiceCollectionExtensions
+public static class NatsDistributedCacheExtensions
 {
     /// <summary>
     /// Adds NATS distributed caching services to the specified <see cref="IServiceCollection" />.

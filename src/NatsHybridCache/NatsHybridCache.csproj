@@ -1,10 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Nullable>enable</Nullable>
-    <RootNamespace>CodeCargo.Nats.DistributedCache</RootNamespace>
-    <Description>NATS implementation of Microsoft.Extensions.Caching.Distributed.IDistributedCache.</Description>
+    <RootNamespace>CodeCargo.Nats.HybridCache</RootNamespace>
+    <Description>NATS implementation of Microsoft.Extensions.Caching.Hybrid.IHybridCache.</Description>
 
     <!-- Assembly signing (only if key file exists) -->
     <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">true</SignAssembly>
@@ -14,7 +14,7 @@
     <Authors>CodeCargo</Authors>
     <Company>CodeCargo</Company>
     <Copyright>Copyright © $([System.DateTime]::Now.Year) CodeCargo</Copyright>
-    <PackageId>CodeCargo.Nats.DistributedCache</PackageId>
+    <PackageId>CodeCargo.Nats.HybridCache</PackageId>
     <PackageTags>distributed cache;hybrid cache;nats</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -28,11 +28,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
-    <PackageReference Include="NATS.Client.KeyValueStore" Version="2.6.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NatsDistributedCache\NatsDistributedCache.csproj" />
   </ItemGroup>
 
   <ItemGroup>
