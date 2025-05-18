@@ -30,10 +30,13 @@ dotnet add package NATS.Net
 dotnet add package Microsoft.Extensions.Caching.Hybrid
 ```
 
-
 ## Use with `HybridCache`
 
-The `CodeCargo.NatsHybridCache` package integrates HybridCache with NATS. It registers the distributed cache and configures HybridCache to use the NATS serializer registry.
+The `CodeCargo.NatsHybridCache` package provides an extension method that:
+
+1. Adds the NATS `IDistributedCache`
+2. Adds `HybridCache`
+3. Configures `HybridCache` to use the NATs Connection's serializer registry
 
 ### Install
 

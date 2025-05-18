@@ -16,16 +16,23 @@ public static class NatsHybridCacheExtensions
     /// use the serializer registry from the configured <see cref="INatsConnection"/>.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
-    /// <param name="configureOptions">An action to configure <see cref="NatsCacheOptions"/>.</param>
+    /// <param name="configureNatsOptions">An action to configure <see cref="NatsCacheOptions"/>.</param>
+    /// <param name="configureHybridCacheOptions">An optional action to configure <see cref="HybridCacheOptions"/>.</param>
     /// <param name="connectionServiceKey">If set, resolves a keyed <see cref="INatsConnection"/> instance.</param>
     /// <returns>The configured <see cref="IHybridCacheBuilder"/>.</returns>
     public static IHybridCacheBuilder AddNatsHybridCache(
         this IServiceCollection services,
-        Action<NatsCacheOptions> configureOptions,
+        Action<NatsCacheOptions> configureNatsOptions,
+        Action<HybridCacheOptions>? configureHybridCacheOptions = null,
         object? connectionServiceKey = null)
     {
-        services.AddNatsDistributedCache(configureOptions, connectionServiceKey);
+        services.AddNatsDistributedCache(configureNatsOptions, connectionServiceKey);
         var builder = services.AddHybridCache();
+        if (configureHybridCacheOptions != null)
+        {
+            builder.Services.Configure(configureHybridCacheOptions);
+        }
+
         builder.Services.AddSingleton<IHybridCacheSerializerFactory>(sp =>
         {
             var natsConnection = connectionServiceKey == null
