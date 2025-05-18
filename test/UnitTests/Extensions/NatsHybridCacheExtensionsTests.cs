@@ -2,6 +2,7 @@ using CodeCargo.NatsHybridCache;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Collections.Generic;
 using Moq;
 using NATS.Client.Core;
 
@@ -110,12 +111,50 @@ public class NatsHybridCacheExtensionsTests
         Assert.NotNull(optionsReg);
     }
 
+    [Fact]
+    public void AddNatsHybridCache_ReturnsBuilderWithServices()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+
+        var builder = services.AddNatsHybridCache(o => o.BucketName = "cache");
+
+        Assert.NotNull(builder);
+        Assert.Same(services, builder.Services);
+    }
+
+    [Fact]
+    public void AddNatsHybridCacheSerializerFactory_RegistersFactory()
+    {
+        var builder = new FakeHybridCacheBuilder();
+        var registry = NatsOpts.Default.SerializerRegistry;
+
+        var result = builder.AddNatsHybridCacheSerializerFactory(registry);
+
+        Assert.Same(builder, result);
+        Assert.Single(builder.Factories);
+        Assert.True(builder.Factories[0].TryCreateSerializer<string>(out var serializer));
+        Assert.NotNull(serializer);
+    }
+
     private class FakeHybridCacheSerializerFactory : IHybridCacheSerializerFactory
     {
         public bool TryCreateSerializer<T>(out IHybridCacheSerializer<T> serializer)
         {
             serializer = null!;
             return false;
+        }
+    }
+
+    private class FakeHybridCacheBuilder : IHybridCacheBuilder
+    {
+        public IServiceCollection Services { get; } = new ServiceCollection();
+        public List<IHybridCacheSerializerFactory> Factories { get; } = new();
+
+        public IHybridCacheBuilder AddSerializerFactory(IHybridCacheSerializerFactory factory)
+        {
+            Factories.Add(factory);
+            return this;
         }
     }
 }
