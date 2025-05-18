@@ -1,11 +1,11 @@
 using Aspire.Hosting;
-using CodeCargo.Nats.DistributedCache.TestUtils;
+using CodeCargo.NatsDistributedCache.TestUtils;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
+namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 /// <summary>
 /// Test fixture that starts an Aspire-hosted NATS server for integration tests

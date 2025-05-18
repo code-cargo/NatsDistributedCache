@@ -5,12 +5,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
-namespace CodeCargo.Nats.DistributedCache;
+namespace CodeCargo.NatsDistributedCache;
 
 /// <summary>
 /// Extension methods for setting up NATS distributed cache related services in an <see cref="IServiceCollection" />.
 /// </summary>
-public static class NatsCacheServiceCollectionExtensions
+public static class NatsDistributedCacheExtensions
 {
     /// <summary>
     /// Adds NATS distributed caching services to the specified <see cref="IServiceCollection" />.
@@ -27,19 +27,19 @@ public static class NatsCacheServiceCollectionExtensions
     {
         services.AddOptions();
         services.Configure(configureOptions);
-        services.Add(ServiceDescriptor.Singleton<IDistributedCache, NatsCacheImpl>(serviceProvider =>
+        services.AddSingleton<IDistributedCache>(sp =>
         {
-            var optionsAccessor = serviceProvider.GetRequiredService<IOptions<NatsCacheOptions>>();
-            var logger = serviceProvider.GetService<ILogger<NatsCache>>();
+            var optionsAccessor = sp.GetRequiredService<IOptions<NatsCacheOptions>>();
+            var logger = sp.GetService<ILogger<NatsCache>>();
 
             var natsConnection = connectionServiceKey == null
-                ? serviceProvider.GetRequiredService<INatsConnection>()
-                : serviceProvider.GetRequiredKeyedService<INatsConnection>(connectionServiceKey);
+                ? sp.GetRequiredService<INatsConnection>()
+                : sp.GetRequiredKeyedService<INatsConnection>(connectionServiceKey);
 
             return logger != null
-                ? new NatsCacheImpl(optionsAccessor, logger, serviceProvider, natsConnection)
-                : new NatsCacheImpl(optionsAccessor, serviceProvider, natsConnection);
-        }));
+                ? new NatsCache(optionsAccessor, logger, natsConnection)
+                : new NatsCache(optionsAccessor, natsConnection);
+        });
 
         return services;
     }

@@ -8,7 +8,7 @@ using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace CodeCargo.Nats.DistributedCache;
+namespace CodeCargo.NatsDistributedCache;
 
 /// <summary>
 /// Cache entry for storing in NATS Key-Value Store
@@ -243,7 +243,7 @@ public partial class NatsCache : IBufferDistributedCache
             try
             {
                 var kv = _natsConnection.CreateKeyValueStoreContext();
-                var store = await kv.GetStoreAsync(_bucketName);
+                var store = await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
                 LogConnected(_bucketName);
                 return store;
             }

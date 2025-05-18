@@ -3,17 +3,16 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.Nats.DistributedCache.ReadmeExample</RootNamespace>
+    <RootNamespace>CodeCargo.NatsDistributedCache.ReadmeExample</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" Version="9.2.1" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.4.0" />
     <PackageReference Include="NATS.Net" Version="2.6.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NatsDistributedCache\NatsDistributedCache.csproj" />
+    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" />
     <ProjectReference Include="..\NatsAppHost\NatsAppHost.csproj" />
   </ItemGroup>
 

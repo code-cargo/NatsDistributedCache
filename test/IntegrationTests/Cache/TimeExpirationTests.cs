@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
 
 public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
@@ -10,15 +10,15 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
+        DistributedCache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
 
         for (var i = 0; i < 4 && result != null; i++)
         {
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
-            result = Cache.Get(key);
+            result = DistributedCache.Get(key);
         }
 
         Assert.Null(result);
@@ -30,15 +30,15 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
+        DistributedCache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)));
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
 
         for (var i = 0; i < 4 && result != null; i++)
         {
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
-            result = Cache.Get(key);
+            result = DistributedCache.Get(key);
         }
 
         Assert.Null(result);
@@ -50,14 +50,14 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(1)));
+        DistributedCache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(1)));
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
 
         Thread.Sleep(TimeSpan.FromSeconds(3));
 
-        result = Cache.Get(key);
+        result = DistributedCache.Get(key);
         Assert.Null(result);
     }
 
@@ -67,23 +67,23 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(1)));
+        DistributedCache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(1)));
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
 
         for (var i = 0; i < 5; i++)
         {
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
 
-            result = Cache.Get(key);
+            result = DistributedCache.Get(key);
             Assert.NotNull(result);
             Assert.Equal(value, result);
         }
 
         Thread.Sleep(TimeSpan.FromSeconds(3));
 
-        result = Cache.Get(key);
+        result = DistributedCache.Get(key);
         Assert.Null(result);
     }
 
@@ -93,19 +93,19 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value, new DistributedCacheEntryOptions()
+        DistributedCache.Set(key, value, new DistributedCacheEntryOptions()
             .SetSlidingExpiration(TimeSpan.FromSeconds(1.1))
             .SetAbsoluteExpiration(TimeSpan.FromSeconds(4)));
 
         var setTime = DateTime.Now;
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
 
         for (var i = 0; i < 4; i++)
         {
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
 
-            result = Cache.Get(key);
+            result = DistributedCache.Get(key);
             Assert.NotNull(result);
             Assert.Equal(value, result);
         }
@@ -115,7 +115,7 @@ public class TimeExpirationTests(NatsIntegrationFixture fixture) : TestBase(fixt
             Thread.Sleep(TimeSpan.FromSeconds(0.5));
         }
 
-        result = Cache.Get(key);
+        result = DistributedCache.Get(key);
         Assert.Null(result);
     }
 }

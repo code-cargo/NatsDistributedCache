@@ -1,7 +1,7 @@
-using CodeCargo.Nats.DistributedCache.TestUtils.Assertions;
+using CodeCargo.NatsDistributedCache.TestUtils.Assertions;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.Nats.DistributedCache.UnitTests.Cache;
+namespace CodeCargo.NatsDistributedCache.UnitTests.Cache;
 
 public class TimeExpirationAsyncUnitTests : TestBase
 {

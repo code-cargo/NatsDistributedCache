@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-namespace CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
+namespace CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
 
 /// <summary>
 /// Extension methods for configuring logging in test context

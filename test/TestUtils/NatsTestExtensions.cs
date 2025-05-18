@@ -1,8 +1,9 @@
+using CodeCargo.NatsHybridCache;
 using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 using NATS.Client.Hosting;
 
-namespace CodeCargo.Nats.DistributedCache.TestUtils;
+namespace CodeCargo.NatsDistributedCache.TestUtils;
 
 public static class NatsTestExtensions
 {
@@ -16,13 +17,12 @@ public static class NatsTestExtensions
 
     public static IServiceCollection AddHybridCacheTestClient(this IServiceCollection services)
     {
-        // Add HybridCache
-        var hybridCacheServices = services.AddHybridCache();
+        // Add the NATS hybrid cache with default options
+        services.AddNatsHybridCache(options =>
+        {
+            options.BucketName = "cache";
+        });
 
-        // Use NATS Serializer for HybridCache
-        var natsOpts = NatsOpts.Default;
-        hybridCacheServices.AddSerializerFactory(
-          natsOpts.SerializerRegistry.ToHybridCacheSerializerFactory());
         return services;
     }
 }

@@ -1,10 +1,11 @@
+using System.Buffers;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.Nats.DistributedCache.UnitTests.Extensions;
+namespace CodeCargo.NatsDistributedCache.UnitTests.Extensions;
 
 public class CacheServiceExtensionsUnitTests
 {
@@ -128,6 +129,35 @@ public class CacheServiceExtensionsUnitTests
         var optionsRegistration = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IConfigureOptions<NatsCacheOptions>));
         Assert.NotNull(optionsRegistration);
+    }
+
+    [Fact]
+    public void AddNatsCache_ReturnsServiceCollection()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+
+        var result = services.AddNatsDistributedCache(options => options.BucketName = "cache");
+
+        Assert.Same(services, result);
+    }
+
+    [Fact]
+    public void ToHybridCacheSerializerFactory_CreatesWorkingFactory()
+    {
+        var registry = NatsOpts.Default.SerializerRegistry;
+
+        var factory = registry.ToHybridCacheSerializerFactory();
+
+        Assert.NotNull(factory);
+        var created = factory.TryCreateSerializer<string>(out var serializer);
+        Assert.True(created);
+
+        const string value = "hello";
+        var writer = new ArrayBufferWriter<byte>();
+        serializer!.Serialize(value, writer);
+        var seq = new ReadOnlySequence<byte>(writer.WrittenMemory);
+        Assert.Equal(value, serializer.Deserialize(seq));
     }
 
     private class FakeDistributedCache : IDistributedCache

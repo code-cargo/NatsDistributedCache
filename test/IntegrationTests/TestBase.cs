@@ -1,15 +1,14 @@
 using System.Runtime.CompilerServices;
-using CodeCargo.Nats.DistributedCache.TestUtils;
-using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
+using CodeCargo.NatsDistributedCache.TestUtils;
+using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
-using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
+namespace CodeCargo.NatsDistributedCache.IntegrationTests;
 
 /// <summary>
 /// Base class for NATS integration tests that provides test output logging and fixture access
@@ -63,7 +62,7 @@ public abstract class TestBase : IAsyncLifetime
     /// <summary>
     /// Gets the cache from the service provider
     /// </summary>
-    protected IDistributedCache Cache => ServiceProvider.GetRequiredService<IDistributedCache>();
+    protected IDistributedCache DistributedCache => ServiceProvider.GetRequiredService<IDistributedCache>();
 
     /// <summary>
     /// Gets the cache from the service provider
