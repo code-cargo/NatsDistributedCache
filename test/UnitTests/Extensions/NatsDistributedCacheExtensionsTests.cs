@@ -1,7 +1,7 @@
+using System.Buffers;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Buffers;
 using Moq;
 using NATS.Client.Core;
 
