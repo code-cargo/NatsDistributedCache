@@ -243,7 +243,7 @@ public partial class NatsCache : IBufferDistributedCache
             try
             {
                 var kv = _natsConnection.CreateKeyValueStoreContext();
-                var store = await kv.GetStoreAsync(_bucketName);
+                var store = await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
                 LogConnected(_bucketName);
                 return store;
             }
