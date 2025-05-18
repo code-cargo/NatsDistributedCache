@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
 
 public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
@@ -9,7 +9,7 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
     public void GetMissingKeyReturnsNull()
     {
         var key = MethodKey();
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Null(result);
     }
 
@@ -19,9 +19,9 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value);
+        DistributedCache.Set(key, value);
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value, result);
     }
 
@@ -33,11 +33,11 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
         var value1 = new byte[] { 1 };
         var value2 = new byte[] { 2 };
 
-        Cache.Set(key1, value1);
-        Cache.Set(key2, value2);
+        DistributedCache.Set(key1, value1);
+        DistributedCache.Set(key2, value2);
 
-        var result1 = Cache.Get(key1);
-        var result2 = Cache.Get(key2);
+        var result1 = DistributedCache.Get(key1);
+        var result2 = DistributedCache.Get(key2);
 
         Assert.Equal(value1, result1);
         Assert.Equal(value2, result2);
@@ -50,10 +50,10 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
         var value1 = new byte[] { 1 };
         var value2 = new byte[] { 2 };
 
-        Cache.Set(key, value1);
-        Cache.Set(key, value2);
+        DistributedCache.Set(key, value1);
+        DistributedCache.Set(key, value2);
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Equal(value2, result);
     }
 
@@ -63,10 +63,10 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
         var key = MethodKey();
         var value = new byte[1];
 
-        Cache.Set(key, value);
-        Cache.Remove(key);
+        DistributedCache.Set(key, value);
+        DistributedCache.Remove(key);
 
-        var result = Cache.Get(key);
+        var result = DistributedCache.Get(key);
         Assert.Null(result);
     }
 
@@ -78,17 +78,17 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
     public void SetGetNonNullString(string payload)
     {
         var key = MethodKey();
-        Cache.Remove(key); // known state
-        Assert.Null(Cache.Get(key)); // expect null
-        Cache.SetString(key, payload);
+        DistributedCache.Remove(key); // known state
+        Assert.Null(DistributedCache.Get(key)); // expect null
+        DistributedCache.SetString(key, payload);
 
         // check raw bytes
-        var raw = Cache.Get(key);
+        var raw = DistributedCache.Get(key);
         Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
-        var value = Cache.GetString(key);
+        var value = DistributedCache.GetString(key);
         Assert.NotNull(value);
         Assert.Equal(payload, value);
     }
@@ -101,17 +101,17 @@ public class NatsCacheSetAndRemoveTests(NatsIntegrationFixture fixture) : TestBa
     public async Task SetGetNonNullStringAsync(string payload)
     {
         var key = MethodKey();
-        await Cache.RemoveAsync(key); // known state
-        Assert.Null(await Cache.GetAsync(key)); // expect null
-        await Cache.SetStringAsync(key, payload);
+        await DistributedCache.RemoveAsync(key); // known state
+        Assert.Null(await DistributedCache.GetAsync(key)); // expect null
+        await DistributedCache.SetStringAsync(key, payload);
 
         // check raw bytes
-        var raw = await Cache.GetAsync(key);
+        var raw = await DistributedCache.GetAsync(key);
         Assert.NotNull(raw);
         Assert.Equal(Hex(payload), Hex(raw));
 
         // check via string API
-        var value = await Cache.GetStringAsync(key);
+        var value = await DistributedCache.GetStringAsync(key);
         Assert.NotNull(value);
         Assert.Equal(payload, value);
     }

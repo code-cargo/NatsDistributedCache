@@ -5,9 +5,8 @@ using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
-using StreamJsonRpc;
 
-namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
 
 public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {

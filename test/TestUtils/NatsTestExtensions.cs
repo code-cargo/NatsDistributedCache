@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 using NATS.Client.Hosting;
 
-namespace CodeCargo.Nats.DistributedCache.TestUtils;
+namespace CodeCargo.NatsDistributedCache.TestUtils;
 
 public static class NatsTestExtensions
 {

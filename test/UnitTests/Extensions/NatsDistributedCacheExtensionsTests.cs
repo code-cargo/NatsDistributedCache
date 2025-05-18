@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.Nats.DistributedCache.UnitTests.Extensions;
+namespace CodeCargo.NatsDistributedCache.UnitTests.Extensions;
 
 public class CacheServiceExtensionsUnitTests
 {

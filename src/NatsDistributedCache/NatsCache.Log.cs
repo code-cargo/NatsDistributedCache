@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 
-namespace CodeCargo.Nats.DistributedCache;
+namespace CodeCargo.NatsDistributedCache;
 
 public partial class NatsCache
 {
     private void LogException(Exception exception) =>
-        _logger.LogError(EventIds.Exception, exception, "Exception in NatsCache");
+        _logger.LogError(EventIds.Exception, exception, "Exception in NatsDistributedCache");
 
     private void LogConnected(string bucketName) =>
         _logger.LogInformation(EventIds.Connected, "Connected to NATS KV bucket {bucketName}", bucketName);

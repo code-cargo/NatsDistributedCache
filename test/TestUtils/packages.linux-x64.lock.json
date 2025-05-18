@@ -2,18 +2,6 @@
   "version": 1,
   "dependencies": {
     "net8.0": {
-      "Microsoft.Extensions.Caching.Hybrid": {
-        "type": "Direct",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "GtHP+DRraRM6RLq7TzUV8Iiyqm+WemJRLDNqy7uvA+Dgf6fjvxpmHnzgPb+RAcRNjADz961DMHHZ4i5EQjpDPw==",
-        "dependencies": {
-          "Microsoft.Extensions.Caching.Abstractions": "9.0.4",
-          "Microsoft.Extensions.Caching.Memory": "9.0.4",
-          "Microsoft.Extensions.Logging.Abstractions": "9.0.4",
-          "Microsoft.Extensions.Options": "9.0.4"
-        }
-      },
       "Microsoft.Extensions.Logging": {
         "type": "Direct",
         "requested": "[9.0.4, )",
@@ -76,6 +64,17 @@
         "contentHash": "imcZ5BGhBw5mNsWLepBbqqumWaFe0GtvyCvne2/2wsDIBRa2+Lhx4cU/pKt/4BwOizzUEOls2k1eOJQXHGMalg==",
         "dependencies": {
           "Microsoft.Extensions.Primitives": "9.0.4"
+        }
+      },
+      "Microsoft.Extensions.Caching.Hybrid": {
+        "type": "Transitive",
+        "resolved": "9.4.0",
+        "contentHash": "GtHP+DRraRM6RLq7TzUV8Iiyqm+WemJRLDNqy7uvA+Dgf6fjvxpmHnzgPb+RAcRNjADz961DMHHZ4i5EQjpDPw==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Caching.Memory": "9.0.4",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Options": "9.0.4"
         }
       },
       "Microsoft.Extensions.Caching.Memory": {
@@ -261,13 +260,20 @@
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0"
         }
       },
-      "CodeCargo.Nats.DistributedCache": {
+      "CodeCargo.NatsDistributedCache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
           "Microsoft.Extensions.Logging.Abstractions": "[9.0.4, )",
           "Microsoft.Extensions.Options": "[9.0.4, )",
           "NATS.Client.KeyValueStore": "[2.6.0, )"
+        }
+      },
+      "CodeCargo.NatsHybridCache": {
+        "type": "Project",
+        "dependencies": {
+          "CodeCargo.NatsDistributedCache": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Hybrid": "[9.4.0, )"
         }
       }
     }

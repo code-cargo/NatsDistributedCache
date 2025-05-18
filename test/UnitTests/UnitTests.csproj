@@ -5,7 +5,7 @@
     <IsTestProject>true</IsTestProject>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\..\xunit.runsettings</RunSettingsFilePath>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.Nats.DistributedCache.UnitTests</RootNamespace>
+    <RootNamespace>CodeCargo.NatsDistributedCache.UnitTests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

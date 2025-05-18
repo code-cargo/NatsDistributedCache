@@ -1,6 +1,6 @@
-[![NuGet Version](https://img.shields.io/nuget/v/CodeCargo.Nats.DistributedCache?cacheSeconds=3600&color=516bf1)](https://www.nuget.org/packages/CodeCargo.Nats.DistributedCache/)
+[![NuGet Version](https://img.shields.io/nuget/v/CodeCargo.NatsDistributedCache?cacheSeconds=3600&color=516bf1)](https://www.nuget.org/packages/CodeCargo.NatsDistributedCache/)
 
-# CodeCargo.Nats.DistributedCache
+# CodeCargo.NatsDistributedCache
 
 ## Overview
 
@@ -20,7 +20,7 @@ A .NET 8+ library for integrating NATS as a distributed cache in ASP.NET Core ap
 
 ```bash
 # add NATS Distributed Cache
-dotnet add package CodeCargo.Nats.DistributedCache
+dotnet add package CodeCargo.NatsDistributedCache
 
 # optional - add full NATS.Net (NATS Distributed Cache uses a subset of NATS.Net dependencies)
 dotnet add package NATS.Net
@@ -35,7 +35,7 @@ See the [Full Example here](https://github.com/code-cargo/NatsDistributedCache/t
 This is the portion for registering services:
 
 ```csharp
-using CodeCargo.Nats.DistributedCache;
+using CodeCargo.NatsDistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;

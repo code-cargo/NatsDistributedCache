@@ -3,8 +3,8 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Nullable>enable</Nullable>
-    <RootNamespace>CodeCargo.Nats.DistributedCache</RootNamespace>
-    <Description>NATS implementation of Microsoft.Extensions.Caching.Distributed.IDistributedCache.</Description>
+    <RootNamespace>CodeCargo.NatsDistributedCache</RootNamespace>
+    <Description>NATS implementation of IDistributedCache.</Description>
 
     <!-- Assembly signing (only if key file exists) -->
     <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">true</SignAssembly>
@@ -14,7 +14,7 @@
     <Authors>CodeCargo</Authors>
     <Company>CodeCargo</Company>
     <Copyright>Copyright © $([System.DateTime]::Now.Year) CodeCargo</Copyright>
-    <PackageId>CodeCargo.Nats.DistributedCache</PackageId>
+    <PackageId>CodeCargo.NatsDistributedCache</PackageId>
     <PackageTags>distributed cache;hybrid cache;nats</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

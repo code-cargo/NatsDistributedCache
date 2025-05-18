@@ -5,7 +5,7 @@
   <PropertyGroup>
     <IsAspireHost>true</IsAspireHost>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.Nats.DistributedCache.NatsAppHost</RootNamespace>
+    <RootNamespace>CodeCargo.NatsDistributedCache.NatsAppHost</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,8 +1,8 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using CodeCargo.Nats.DistributedCache;
-using CodeCargo.Nats.DistributedCache.PerfTest;
-using CodeCargo.Nats.DistributedCache.TestUtils;
+using CodeCargo.NatsDistributedCache;
+using CodeCargo.NatsDistributedCache.PerfTest;
+using CodeCargo.NatsDistributedCache.TestUtils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;

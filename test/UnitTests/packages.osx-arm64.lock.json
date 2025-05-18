@@ -392,7 +392,7 @@
           "xunit.v3.runner.common": "[2.0.2]"
         }
       },
-      "CodeCargo.Nats.DistributedCache": {
+      "CodeCargo.NatsDistributedCache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
@@ -401,11 +401,17 @@
           "NATS.Client.KeyValueStore": "[2.6.0, )"
         }
       },
+      "CodeCargo.NatsHybridCache": {
+        "type": "Project",
+        "dependencies": {
+          "CodeCargo.NatsDistributedCache": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Hybrid": "[9.4.0, )"
+        }
+      },
       "testutils": {
         "type": "Project",
         "dependencies": {
-          "CodeCargo.Nats.DistributedCache": "[1.0.0, )",
-          "Microsoft.Extensions.Caching.Hybrid": "[9.4.0, )",
+          "CodeCargo.NatsHybridCache": "[1.0.0, )",
           "Microsoft.Extensions.Logging": "[9.0.4, )",
           "NATS.Net": "[2.6.0, )",
           "xunit.v3.assert": "[2.0.2, )",

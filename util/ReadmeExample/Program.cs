@@ -1,6 +1,6 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using CodeCargo.Nats.DistributedCache;
+using CodeCargo.NatsDistributedCache;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;

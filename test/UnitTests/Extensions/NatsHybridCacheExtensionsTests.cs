@@ -1,15 +1,18 @@
-using CodeCargo.Nats.HybridCache;
+using CodeCargo.NatsHybridCache;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.Nats.DistributedCache.UnitTests.Extensions;
+namespace CodeCargo.NatsDistributedCache.UnitTests.Extensions;
 
 public class NatsHybridCacheExtensionsTests
 {
     private readonly Mock<INatsConnection> _mockNatsConnection = new();
+
+    public NatsHybridCacheExtensionsTests() =>
+        _mockNatsConnection.SetupGet(m => m.Opts).Returns(NatsOpts.Default);
 
     [Fact]
     public void AddNatsHybridCache_RegistersSerializerFactoryAsSingleton()
@@ -22,9 +25,9 @@ public class NatsHybridCacheExtensionsTests
             options.BucketName = "cache";
         });
 
-        var registration = services.FirstOrDefault(d => d.ServiceType == typeof(IHybridCacheSerializerFactory));
+        var registration = services.LastOrDefault(d => d.ServiceType == typeof(IHybridCacheSerializerFactory));
         Assert.NotNull(registration);
-        Assert.Equal(ServiceLifetime.Singleton, registration!.Lifetime);
+        Assert.Equal(ServiceLifetime.Singleton, registration.Lifetime);
     }
 
     [Fact]
@@ -33,12 +36,10 @@ public class NatsHybridCacheExtensionsTests
         var services = new ServiceCollection();
         services.AddSingleton(_mockNatsConnection.Object);
         services.AddSingleton<IHybridCacheSerializerFactory>(new FakeHybridCacheSerializerFactory());
-
         services.AddNatsHybridCache(options =>
         {
             options.BucketName = "cache";
         });
-
         var provider = services.BuildServiceProvider();
         var factory = provider.GetRequiredService<IHybridCacheSerializerFactory>();
 
@@ -80,7 +81,7 @@ public class NatsHybridCacheExtensionsTests
         });
 
         var sp = services.BuildServiceProvider();
-        _ = sp.GetRequiredService<IHybridCacheSerializerFactory>();
+        _ = sp.GetRequiredService<HybridCache>();
 
         Assert.True(wasInvoked);
     }
@@ -99,38 +100,21 @@ public class NatsHybridCacheExtensionsTests
             options => { options.BucketName = "cache"; },
             connectionServiceKey: "my-key");
 
-        var cacheReg = services.FirstOrDefault(d => d.ServiceType == typeof(IHybridCacheSerializerFactory));
+        var cacheReg = services.LastOrDefault(d => d.ServiceType == typeof(IHybridCacheSerializerFactory));
         Assert.NotNull(cacheReg);
-        Assert.Equal(ServiceLifetime.Singleton, cacheReg!.Lifetime);
+        Assert.Equal(ServiceLifetime.Singleton, cacheReg.Lifetime);
         Assert.Null(cacheReg.ImplementationType);
         Assert.NotNull(cacheReg.ImplementationFactory);
 
-        var optionsReg = services.FirstOrDefault(d => d.ServiceType == typeof(IConfigureOptions<NatsCacheOptions>));
+        var optionsReg = services.LastOrDefault(d => d.ServiceType == typeof(IConfigureOptions<NatsCacheOptions>));
         Assert.NotNull(optionsReg);
-    }
-
-    [Fact]
-    public void AddNatsHybridCacheSerializerFactory_AddsSerializerFactory()
-    {
-        var builderMock = new Mock<IHybridCacheBuilder>();
-        var registry = NatsOpts.Default.SerializerRegistry;
-
-        builderMock
-            .Setup(b => b.AddSerializerFactory(It.IsAny<IHybridCacheSerializerFactory>()))
-            .Returns(builderMock.Object)
-            .Verifiable();
-
-        var result = builderMock.Object.AddNatsHybridCacheSerializerFactory(registry);
-
-        builderMock.Verify(b => b.AddSerializerFactory(It.IsAny<IHybridCacheSerializerFactory>()), Times.Once);
-        Assert.Equal(builderMock.Object, result);
     }
 
     private class FakeHybridCacheSerializerFactory : IHybridCacheSerializerFactory
     {
-        public bool TryCreateSerializer<T>(out IHybridCacheSerializer<T>? serializer)
+        public bool TryCreateSerializer<T>(out IHybridCacheSerializer<T> serializer)
         {
-            serializer = null;
+            serializer = null!;
             return false;
         }
     }

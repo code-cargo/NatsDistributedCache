@@ -36,18 +36,6 @@
           "System.IO.Hashing": "9.0.3"
         }
       },
-      "Microsoft.Extensions.Caching.Hybrid": {
-        "type": "Direct",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "GtHP+DRraRM6RLq7TzUV8Iiyqm+WemJRLDNqy7uvA+Dgf6fjvxpmHnzgPb+RAcRNjADz961DMHHZ4i5EQjpDPw==",
-        "dependencies": {
-          "Microsoft.Extensions.Caching.Abstractions": "9.0.4",
-          "Microsoft.Extensions.Caching.Memory": "9.0.4",
-          "Microsoft.Extensions.Logging.Abstractions": "9.0.4",
-          "Microsoft.Extensions.Options": "9.0.4"
-        }
-      },
       "NATS.Net": {
         "type": "Direct",
         "requested": "[2.6.0, )",
@@ -311,6 +299,17 @@
         "contentHash": "imcZ5BGhBw5mNsWLepBbqqumWaFe0GtvyCvne2/2wsDIBRa2+Lhx4cU/pKt/4BwOizzUEOls2k1eOJQXHGMalg==",
         "dependencies": {
           "Microsoft.Extensions.Primitives": "9.0.4"
+        }
+      },
+      "Microsoft.Extensions.Caching.Hybrid": {
+        "type": "Transitive",
+        "resolved": "9.4.0",
+        "contentHash": "GtHP+DRraRM6RLq7TzUV8Iiyqm+WemJRLDNqy7uvA+Dgf6fjvxpmHnzgPb+RAcRNjADz961DMHHZ4i5EQjpDPw==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Caching.Memory": "9.0.4",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Options": "9.0.4"
         }
       },
       "Microsoft.Extensions.Caching.Memory": {
@@ -947,7 +946,7 @@
         "resolved": "16.3.0",
         "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       },
-      "CodeCargo.Nats.DistributedCache": {
+      "CodeCargo.NatsDistributedCache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
@@ -956,13 +955,20 @@
           "NATS.Client.KeyValueStore": "[2.6.0, )"
         }
       },
+      "CodeCargo.NatsHybridCache": {
+        "type": "Project",
+        "dependencies": {
+          "CodeCargo.NatsDistributedCache": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Hybrid": "[9.4.0, )"
+        }
+      },
       "natsapphost": {
         "type": "Project",
         "dependencies": {
           "Aspire.Dashboard.Sdk.osx-arm64": "[9.2.1, )",
           "Aspire.Hosting.AppHost": "[9.2.1, )",
           "Aspire.Hosting.Orchestration.osx-arm64": "[9.2.1, )",
-          "CodeCargo.Nats.DistributedCache": "[1.0.0, )"
+          "CodeCargo.NatsHybridCache": "[1.0.0, )"
         }
       }
     }
