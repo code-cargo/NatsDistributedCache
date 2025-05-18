@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using CodeCargo.NatsHybridCache;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,19 +128,6 @@ public class NatsHybridCacheExtensionsTests
         {
             serializer = null!;
             return false;
-        }
-    }
-
-    private class FakeHybridCacheBuilder : IHybridCacheBuilder
-    {
-        public IServiceCollection Services { get; } = new ServiceCollection();
-
-        public List<IHybridCacheSerializerFactory> Factories { get; } = new();
-
-        public IHybridCacheBuilder AddSerializerFactory(IHybridCacheSerializerFactory factory)
-        {
-            Factories.Add(factory);
-            return this;
         }
     }
 }
