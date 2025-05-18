@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NatsDistributedCache\NatsDistributedCache.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
   <ItemGroup>
