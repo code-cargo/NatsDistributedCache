@@ -18,4 +18,4 @@ else
     provider = new NatsTestProvider();
 }
 
-await provider.RunAsync(args);
+await provider.Run(args);

@@ -13,15 +13,17 @@ namespace CodeCargo.Nats.DistributedCache.PerfTest.TestProvider;
 
 public class NatsTestProvider : BaseTestProvider
 {
-    protected override async Task<(DistributedApplication App, string ConnectionString)> StartDistributedApplicationAsync(CancellationToken ct)
+    protected override string BackendName => "NATS";
+
+    protected override async Task<(DistributedApplication App, string ConnectionString)> StartAspire(
+        CancellationToken ct)
     {
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.NatsAppHost>();
-        var app = await appHost.BuildAsync();
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.NatsAppHost>(ct);
+        var app = await appHost.BuildAsync(ct);
         await app.StartAsync(ct);
 
         var resourceNotificationService = app.Services.GetRequiredService<ResourceNotificationService>();
         await resourceNotificationService.WaitForResourceHealthyAsync("Nats", ct);
-
         var connectionString = await app.GetConnectionStringAsync("Nats", cancellationToken: ct);
         if (string.IsNullOrEmpty(connectionString))
         {
@@ -38,17 +40,13 @@ public class NatsTestProvider : BaseTestProvider
         services.AddNatsDistributedCache(options => options.BucketName = "cache");
     }
 
-    protected override async Task AfterHostBuildAsync(IHost host, CancellationToken ct)
+    protected override async Task AfterHostBuild(IHost host, CancellationToken ct)
     {
         Console.WriteLine("Creating KV store...");
         var nats = host.Services.GetRequiredService<INatsConnection>();
         var kv = nats.CreateKeyValueStoreContext();
         await kv.CreateOrUpdateStoreAsync(
-            new NatsKVConfig("cache")
-            {
-                LimitMarkerTTL = TimeSpan.FromSeconds(1),
-                Storage = NatsKVStorageType.Memory
-            },
+            new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1), Storage = NatsKVStorageType.Memory },
             ct);
         await nats
             .CreateJetStreamContext()

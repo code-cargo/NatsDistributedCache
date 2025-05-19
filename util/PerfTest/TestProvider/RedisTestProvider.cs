@@ -11,7 +11,10 @@ namespace CodeCargo.Nats.DistributedCache.PerfTest.TestProvider;
 
 public class RedisTestProvider : BaseTestProvider
 {
-    protected override async Task<(DistributedApplication App, string ConnectionString)> StartDistributedApplicationAsync(CancellationToken ct)
+    protected override string BackendName => "Redis";
+
+    protected override async Task<(DistributedApplication App, string ConnectionString)> StartAspire(
+        CancellationToken ct)
     {
         try
         {
@@ -21,9 +24,6 @@ public class RedisTestProvider : BaseTestProvider
             await app.StartAsync(ct);
 
             Console.WriteLine("Waiting for Redis to become available...");
-
-            // Give Redis container some time to start
-            await Task.Delay(TimeSpan.FromSeconds(3), ct);
 
             // Get the connection string from Aspire
             // Wait for the Redis resource to become available
@@ -57,7 +57,8 @@ public class RedisTestProvider : BaseTestProvider
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to get Redis connection: {ex.Message}");
-                throw new InvalidOperationException("Could not establish Redis connection. Make sure the Redis container is running.", ex);
+                throw new InvalidOperationException(
+                    "Could not establish Redis connection. Make sure the Redis container is running.", ex);
             }
 
             Console.WriteLine($"Connecting to Redis at: {connectionString}");
@@ -71,17 +72,11 @@ public class RedisTestProvider : BaseTestProvider
         }
     }
 
-    protected override void RegisterServices(IServiceCollection services, string connectionString)
-    {
-        Console.WriteLine($"Configuring Redis with connection string: {connectionString}");
+    protected override void RegisterServices(IServiceCollection services, string connectionString) =>
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = connectionString;
-
-            // Add some connection resilience
-            options.InstanceName = "PerfTest_";
         });
-    }
 
-    protected override Task AfterHostBuildAsync(IHost host, CancellationToken ct) => Task.CompletedTask;
+    protected override Task AfterHostBuild(IHost host, CancellationToken ct) => Task.CompletedTask;
 }

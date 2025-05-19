@@ -11,11 +11,13 @@ public abstract class BaseTestProvider
     private static readonly TimeSpan AppShutdownTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PerfTestTimeout = TimeSpan.FromMinutes(1);
 
-    public async Task RunAsync(string[] args)
+    protected abstract string BackendName { get; }
+
+    public async Task Run(string[] args)
     {
         Console.WriteLine("Starting Aspire...");
         using var startupCts = new CancellationTokenSource(AspireStartupTimeout);
-        var (app, connectionString) = await StartDistributedApplicationAsync(startupCts.Token);
+        var (app, connectionString) = await StartAspire(startupCts.Token);
         try
         {
             var builder = Host.CreateDefaultBuilder(args);
@@ -28,7 +30,7 @@ public abstract class BaseTestProvider
             var host = builder.Build();
             var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 
-            await AfterHostBuildAsync(host, startupCts.Token);
+            await AfterHostBuild(host, startupCts.Token);
 
             Console.WriteLine("Starting app...");
             using var appCts = new CancellationTokenSource();
@@ -68,7 +70,7 @@ public abstract class BaseTestProvider
                         CancellationTokenSource.CreateLinkedTokenSource(cts.Token, lifetime.ApplicationStopping);
                     using var scope = host.Services.CreateScope();
                     var perfTest = scope.ServiceProvider.GetRequiredService<PerfTest>();
-                    await perfTest.Run(linked.Token);
+                    await perfTest.Run(BackendName, linked.Token);
                 }
             }
             catch (OperationCanceledException) when (lifetime.ApplicationStopping.IsCancellationRequested)
@@ -94,10 +96,9 @@ public abstract class BaseTestProvider
         }
     }
 
-    protected abstract Task<(DistributedApplication App, string ConnectionString)> StartDistributedApplicationAsync(
-        CancellationToken ct);
+    protected abstract Task<(DistributedApplication App, string ConnectionString)> StartAspire(CancellationToken ct);
 
     protected abstract void RegisterServices(IServiceCollection services, string connectionString);
 
-    protected virtual Task AfterHostBuildAsync(IHost host, CancellationToken ct) => Task.CompletedTask;
+    protected virtual Task AfterHostBuild(IHost host, CancellationToken ct) => Task.CompletedTask;
 }

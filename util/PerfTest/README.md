@@ -30,7 +30,7 @@ To run Redis tests instead, you can:
 
 ```bash
 # flag
-dotnet run -c Release --redis
+dotnet run -c Release -- --redis
 
 # or env var
 TEST_REDIS=true dotnet run -c Release
