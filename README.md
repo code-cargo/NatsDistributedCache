@@ -22,12 +22,11 @@ The `CodeCargo.Nats.HybridCacheExtensions` package provides an extension method 
 
 1. Adds the NATS `IDistributedCache`
 2. Adds `HybridCache`
-3. Configures `HybridCache` to use the NATs Connection's serializer registry
+3. Configures `HybridCache` to use the NATS Connection's serializer registry
 
 ### Install
 
 ```bash
-dotnet add package CodeCargo.Nats.DistributedCache
 dotnet add package CodeCargo.Nats.HybridCacheExtensions
 dotnet add package NATS.Net
 ```

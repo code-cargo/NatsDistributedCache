@@ -14,7 +14,8 @@ public class PerfTest
     private readonly IDistributedCache _cache;
     private readonly string[] _keys;
     private readonly byte[] _valuePayload;
-    private readonly List<Stage> _stages = new();
+    private readonly List<Stage> _stages = [];
+    private string _backendName = string.Empty;
 
     public PerfTest(IDistributedCache cache)
     {
@@ -32,10 +33,11 @@ public class PerfTest
         Array.Fill(_valuePayload, (byte)'0'); // Fill with ASCII character '0' (value 48)
     }
 
-    public async Task Run(CancellationToken ct)
+    public async Task Run(string backendName, CancellationToken ct)
     {
         // Clear stages for a new run
         _stages.Clear();
+        _backendName = backendName;
 
         // Run all stages sequentially
         await RunStage("Insert", SetWithAbsoluteExpiry, ct);
@@ -201,6 +203,12 @@ public class PerfTest
         const int p99Width = 10;
         const int totalWidth = stageWidth + 1 + opsWidth + 1 + dataWidth + 1 + durationWidth + 1 + p50Width + 1 +
                                p95Width + 1 + p99Width;
+
+        // Print backend information
+        if (!string.IsNullOrEmpty(_backendName))
+        {
+            Console.WriteLine($"Backend: {_backendName}");
+        }
 
         // Print header
         Console.WriteLine(
