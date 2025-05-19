@@ -1,6 +1,6 @@
 [![CodeCargo.Nats.DistributedCache](https://img.shields.io/nuget/v/CodeCargo.Nats.DistributedCache?color=516bf1&label=CodeCargo.Nats.DistributedCache)](https://www.nuget.org/packages/CodeCargo.Nats.DistributedCache/) [![CodeCargo.Nats.HybridCacheExtensions](https://img.shields.io/nuget/v/CodeCargo.Nats.HybridCacheExtensions?color=516bf1&label=CodeCargo.Nats.HybridCacheExtensions)](https://www.nuget.org/packages/CodeCargo.Nats.HybridCacheExtensions/)
 
-# CodeCargo.Nats.DistributedCache
+# NATS Distributed Cache
 
 ## Overview
 
@@ -15,20 +15,6 @@ A .NET 8+ library for using NATS with `HybridCache` or as an `IDistributedCache`
     var kvContext = natsConnection.CreateKeyValueStoreContext();
     await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
     ```
-
-## Installation
-
-```bash
-# add NATS Distributed Cache
-dotnet add package CodeCargo.Nats.DistributedCache
-dotnet add package CodeCargo.Nats.HybridCacheExtensions
-
-# optional - add full NATS.Net (NATS Distributed Cache uses a subset of NATS.Net dependencies)
-dotnet add package NATS.Net
-
-# optional - add HybridCache
-dotnet add package Microsoft.Extensions.Caching.Hybrid
-```
 
 ## Use with `HybridCache`
 

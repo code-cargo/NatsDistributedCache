@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TestUtils\TestUtils.csproj" />
-    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" />
+    <ProjectReference Include="..\..\src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj" />
     <ProjectReference Include="..\..\util\NatsAppHost\NatsAppHost.csproj" />
   </ItemGroup>
 

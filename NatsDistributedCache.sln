@@ -23,7 +23,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PerfTest", "util\PerfTest\P
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReadmeExample", "util\ReadmeExample\ReadmeExample.csproj", "{2F16AC9F-97A1-4362-84B4-F03C3EBC6CD6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NatsHybridCache", "src\NatsHybridCache\NatsHybridCache.csproj", "{F95B33FB-37B3-44F4-9E10-55835A527CA3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NatsHybridCacheExtensions", "src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj", "{F95B33FB-37B3-44F4-9E10-55835A527CA3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
