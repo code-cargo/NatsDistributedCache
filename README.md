@@ -27,7 +27,6 @@ The `CodeCargo.Nats.HybridCacheExtensions` package provides an extension method 
 ### Install
 
 ```bash
-dotnet add package CodeCargo.Nats.DistributedCache
 dotnet add package CodeCargo.Nats.HybridCacheExtensions
 dotnet add package NATS.Net
 ```

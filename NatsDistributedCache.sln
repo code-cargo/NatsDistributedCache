@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -24,6 +24,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReadmeExample", "util\ReadmeExample\ReadmeExample.csproj", "{2F16AC9F-97A1-4362-84B4-F03C3EBC6CD6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NatsHybridCacheExtensions", "src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj", "{F95B33FB-37B3-44F4-9E10-55835A527CA3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisAppHost", "util\RedisAppHost\RedisAppHost.csproj", "{384A3CF1-B87E-45FC-88A8-037C08D82DD7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -131,6 +133,18 @@ Global
 		{F95B33FB-37B3-44F4-9E10-55835A527CA3}.Release|x64.Build.0 = Release|Any CPU
 		{F95B33FB-37B3-44F4-9E10-55835A527CA3}.Release|x86.ActiveCfg = Release|Any CPU
 		{F95B33FB-37B3-44F4-9E10-55835A527CA3}.Release|x86.Build.0 = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|x64.Build.0 = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Debug|x86.Build.0 = Debug|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|x64.ActiveCfg = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|x64.Build.0 = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|x86.ActiveCfg = Release|Any CPU
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -144,5 +158,6 @@ Global
 		{2F8B1224-AAC1-4ABB-BFF6-35AFE1D33E29} = {55AA232E-1A1A-2839-440B-9DCB8E3B1CD6}
 		{2F16AC9F-97A1-4362-84B4-F03C3EBC6CD6} = {55AA232E-1A1A-2839-440B-9DCB8E3B1CD6}
 		{F95B33FB-37B3-44F4-9E10-55835A527CA3} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{384A3CF1-B87E-45FC-88A8-037C08D82DD7} = {55AA232E-1A1A-2839-440B-9DCB8E3B1CD6}
 	EndGlobalSection
 EndGlobal

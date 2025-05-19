@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
+
+  <PropertyGroup>
+    <IsAspireHost>true</IsAspireHost>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.RedisAppHost</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj" IsAspireProjectResource="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.2.1" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.2.1" />
+  </ItemGroup>
+
+</Project>

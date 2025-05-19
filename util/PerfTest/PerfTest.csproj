@@ -8,12 +8,14 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" Version="9.2.1" />
+    <PackageReference Include=" Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.5" />
     <PackageReference Include="NATS.Net" Version="2.6.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\test\TestUtils\TestUtils.csproj" />
     <ProjectReference Include="..\NatsAppHost\NatsAppHost.csproj" />
+    <ProjectReference Include="..\RedisAppHost\RedisAppHost.csproj" />
   </ItemGroup>
 
 </Project>
