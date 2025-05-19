@@ -1,10 +1,12 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using CodeCargo.NatsDistributedCache;
+using CodeCargo.ReadmeExample;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.Hosting;
 using NATS.Client.KeyValueStore;
@@ -49,12 +51,16 @@ builder.ConfigureServices(services =>
         options.BucketName = "cache";
     });
 
-    // (Optional) Add HybridCache
+    // Add HybridCache
     var hybridCacheServices = services.AddHybridCache();
 
-    // (Optional) Use NATS Serializer for HybridCache
+    // Use NATS Serializer for HybridCache
     hybridCacheServices.AddSerializerFactory(
         NatsOpts.Default.SerializerRegistry.ToHybridCacheSerializerFactory());
+        
+    // Register our cache services
+    services.AddScoped<DistributedCacheService>();
+    services.AddScoped<HybridCacheService>();
 });
 
 // Build the host
@@ -90,9 +96,13 @@ try
     await WaitForApplicationStartAsync(lifetime, appStartupTimeout);
     Console.WriteLine("App started");
 
-    // Run the examples
-    await DistributedCacheExample(host.Services);
-    await HybridCacheExample(host.Services);
+    // Run the examples using the injected services
+    using var scope = host.Services.CreateScope();
+    var distributedCacheService = scope.ServiceProvider.GetRequiredService<DistributedCacheService>();
+    var hybridCacheService = scope.ServiceProvider.GetRequiredService<HybridCacheService>();
+    
+    await distributedCacheService.Run();
+    await hybridCacheService.Run();
 
     // Shut down gracefully
     await appCts.CancelAsync();
@@ -134,49 +144,4 @@ static async Task WaitForApplicationStartAsync(IHostApplicationLifetime lifetime
     }
 }
 
-static async Task DistributedCacheExample(IServiceProvider serviceProvider)
-{
-    Console.WriteLine("------------------------------------------");
-    Console.WriteLine("DistributedCache example");
-    using var scope = serviceProvider.CreateScope();
-    var cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
-
-    // Set a value
-    const string cacheKey = "distributed-cache-greeting";
-    const string value = "Hello from NATS Distributed Cache!";
-    await cache.SetStringAsync(
-        cacheKey,
-        value,
-        new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) });
-    Console.WriteLine($"Set value in cache: {value}");
-
-    // Retrieve the value
-    var retrievedValue = await cache.GetStringAsync(cacheKey);
-    Console.WriteLine($"Retrieved value from cache: {retrievedValue}");
-
-    // Remove the value
-    await cache.RemoveAsync(cacheKey);
-    Console.WriteLine("Removed value from cache");
-}
-
-static async Task HybridCacheExample(IServiceProvider serviceProvider)
-{
-    Console.WriteLine("------------------------------------------");
-    Console.WriteLine("HybridCache example");
-    using var scope = serviceProvider.CreateScope();
-    var cache = scope.ServiceProvider.GetRequiredService<HybridCache>();
-
-    // Define key to use
-    const string key = "hybrid-cache-greeting";
-
-    // Use GetOrCreateAsync to either get the value from cache or create it if not present
-    var result = await cache.GetOrCreateAsync<string>(
-        key,
-        _ => ValueTask.FromResult("Hello from NATS Hybrid Cache!"),
-        new HybridCacheEntryOptions { Expiration = TimeSpan.FromMinutes(1) });
-    Console.WriteLine($"Got/created value from cache: {result}");
-
-    // Remove the value from cache
-    await cache.RemoveAsync(key);
-    Console.WriteLine("Removed value from cache");
-}
+// Methods have been moved to their respective service classes
