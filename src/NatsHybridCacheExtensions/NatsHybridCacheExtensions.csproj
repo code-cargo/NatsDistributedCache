@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Nullable>enable</Nullable>
-    <RootNamespace>CodeCargo.NatsHybridCache</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.HybridCacheExtensions</RootNamespace>
     <Description>Extensions for using HybridCache with NATS.</Description>
 
     <!-- Assembly signing (only if key file exists) -->
@@ -14,7 +14,7 @@
     <Authors>CodeCargo</Authors>
     <Company>CodeCargo</Company>
     <Copyright>Copyright © $([System.DateTime]::Now.Year) CodeCargo</Copyright>
-    <PackageId>CodeCargo.NatsHybridCache</PackageId>
+    <PackageId>CodeCargo.Nats.HybridCacheExtensions</PackageId>
     <PackageTags>distributed cache;hybrid cache;nats</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

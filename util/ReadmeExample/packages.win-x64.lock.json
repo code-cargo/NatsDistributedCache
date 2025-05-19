@@ -946,7 +946,7 @@
         "resolved": "16.3.0",
         "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       },
-      "CodeCargo.NatsDistributedCache": {
+      "CodeCargo.Nats.DistributedCache": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Caching.Abstractions": "[9.0.4, )",
@@ -955,10 +955,10 @@
           "NATS.Client.KeyValueStore": "[2.6.0, )"
         }
       },
-      "CodeCargo.NatsHybridCache": {
+      "CodeCargo.Nats.HybridCacheExtensions": {
         "type": "Project",
         "dependencies": {
-          "CodeCargo.NatsDistributedCache": "[1.0.0, )",
+          "CodeCargo.Nats.DistributedCache": "[1.0.0, )",
           "Microsoft.Extensions.Caching.Hybrid": "[9.4.0, )"
         }
       },
@@ -968,7 +968,7 @@
           "Aspire.Dashboard.Sdk.win-x64": "[9.2.1, )",
           "Aspire.Hosting.AppHost": "[9.2.1, )",
           "Aspire.Hosting.Orchestration.win-x64": "[9.2.1, )",
-          "CodeCargo.NatsHybridCache": "[1.0.0, )"
+          "CodeCargo.Nats.HybridCacheExtensions": "[1.0.0, )"
         }
       }
     }

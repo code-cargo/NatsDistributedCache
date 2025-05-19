@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.NatsDistributedCache.ReadmeExample</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.ReadmeExample</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" />
+    <ProjectReference Include="..\..\src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj" />
     <ProjectReference Include="..\NatsAppHost\NatsAppHost.csproj" />
   </ItemGroup>
 

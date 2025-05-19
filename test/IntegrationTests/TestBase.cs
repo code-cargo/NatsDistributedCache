@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using CodeCargo.NatsDistributedCache.TestUtils;
-using CodeCargo.NatsDistributedCache.TestUtils.Services.Logging;
+using CodeCargo.Nats.DistributedCache.TestUtils;
+using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
@@ -8,7 +8,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 
-namespace CodeCargo.NatsDistributedCache.IntegrationTests;
+namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
 
 /// <summary>
 /// Base class for NATS integration tests that provides test output logging and fixture access

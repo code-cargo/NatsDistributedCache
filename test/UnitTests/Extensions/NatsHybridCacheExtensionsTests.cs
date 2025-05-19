@@ -1,11 +1,11 @@
-using CodeCargo.NatsHybridCache;
+using CodeCargo.Nats.HybridCacheExtensions;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache.UnitTests.Extensions;
+namespace CodeCargo.Nats.DistributedCache.UnitTests.Extensions;
 
 public class NatsHybridCacheExtensionsTests
 {

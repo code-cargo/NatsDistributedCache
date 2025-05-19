@@ -1,5 +1,5 @@
 // even though this is an IHybridCacheSerializer, it's included in Microsoft.Extensions.Caching.Abstractions
-// so we can include it in the NatsDistributedCache package instead of NatsHybridCache to give library
+// so we can include it in the NatsDistributedCache package instead of NatsHybridCacheExtensions to give library
 // consumers the option to reduce dependencies
 
 using System.Buffers;
@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache;
+namespace CodeCargo.Nats.DistributedCache;
 
 public readonly struct NatsHybridCacheSerializer<T>(INatsSerialize<T> serializer, INatsDeserialize<T> deserializer)
     : IHybridCacheSerializer<T>

@@ -1,9 +1,9 @@
-using CodeCargo.NatsHybridCache;
+using CodeCargo.Nats.HybridCacheExtensions;
 using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 using NATS.Client.Hosting;
 
-namespace CodeCargo.NatsDistributedCache.TestUtils;
+namespace CodeCargo.Nats.DistributedCache.TestUtils;
 
 public static class NatsTestExtensions
 {

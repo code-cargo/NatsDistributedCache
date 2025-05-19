@@ -5,7 +5,7 @@
     <IsTestProject>true</IsTestProject>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\..\xunit.runsettings</RunSettingsFilePath>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.NatsDistributedCache.UnitTests</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.UnitTests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" />
+    <ProjectReference Include="..\..\src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj" />
     <ProjectReference Include="..\TestUtils\TestUtils.csproj" />
   </ItemGroup>
 

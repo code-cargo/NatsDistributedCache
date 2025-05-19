@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>CodeCargo.NatsDistributedCache.TestUtils</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.TestUtils</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NatsHybridCache\NatsHybridCache.csproj" />
+    <ProjectReference Include="..\..\src\NatsHybridCacheExtensions\NatsHybridCacheExtensions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

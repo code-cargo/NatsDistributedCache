@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using CodeCargo.NatsDistributedCache.PerfTest.Utils;
+using CodeCargo.Nats.DistributedCache.PerfTest.Utils;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace CodeCargo.NatsDistributedCache.PerfTest;
+namespace CodeCargo.Nats.DistributedCache.PerfTest;
 
 public class PerfTest
 {
