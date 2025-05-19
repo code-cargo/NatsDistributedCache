@@ -38,7 +38,7 @@ public class NatsTestProvider : BaseTestProvider
         services.AddNatsDistributedCache(options => options.BucketName = "cache");
     }
 
-    protected override async Task AfterHostBuildAsync(IHost host, string connectionString, CancellationToken ct)
+    protected override async Task AfterHostBuildAsync(IHost host, CancellationToken ct)
     {
         Console.WriteLine("Creating KV store...");
         var nats = host.Services.GetRequiredService<INatsConnection>();
