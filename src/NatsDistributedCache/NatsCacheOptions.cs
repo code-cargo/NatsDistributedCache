@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace CodeCargo.NatsDistributedCache
+namespace CodeCargo.Nats.DistributedCache
 {
     /// <summary>
     /// Configuration options for <see cref="NatsCache"/>.

@@ -8,7 +8,7 @@ using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace CodeCargo.NatsDistributedCache;
+namespace CodeCargo.Nats.DistributedCache;
 
 /// <summary>
 /// Cache entry for storing in NATS Key-Value Store

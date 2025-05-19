@@ -1,4 +1,4 @@
-using CodeCargo.NatsDistributedCache;
+using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;

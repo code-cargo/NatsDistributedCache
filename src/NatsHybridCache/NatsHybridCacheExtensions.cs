@@ -1,9 +1,9 @@
-using CodeCargo.NatsDistributedCache;
+using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsHybridCache;
+namespace CodeCargo.Nats.HybridCacheExtensions;
 
 /// <summary>
 /// Extension methods for setting up NATS hybrid cache related services in an <see cref="IServiceCollection" />.

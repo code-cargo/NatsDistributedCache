@@ -1,4 +1,4 @@
-namespace CodeCargo.NatsDistributedCache.IntegrationTests;
+namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
 
 [CollectionDefinition(Name)]
 public class NatsCollection : ICollectionFixture<NatsIntegrationFixture>

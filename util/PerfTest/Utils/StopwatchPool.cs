@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Diagnostics;
 
-namespace CodeCargo.NatsDistributedCache.PerfTest.Utils
+namespace CodeCargo.Nats.DistributedCache.PerfTest.Utils
 {
     /// <summary>
     /// Provides a pooled Stopwatch to reduce allocations in performance-critical code

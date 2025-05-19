@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CodeCargo.NatsDistributedCache.ReadmeExample</RootNamespace>
+    <RootNamespace>CodeCargo.Nats.DistributedCache.ReadmeExample</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

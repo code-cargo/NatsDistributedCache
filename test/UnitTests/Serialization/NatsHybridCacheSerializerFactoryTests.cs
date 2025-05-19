@@ -2,7 +2,7 @@ using System.Buffers;
 using Moq;
 using NATS.Client.Core;
 
-namespace CodeCargo.NatsDistributedCache.UnitTests.Serialization;
+namespace CodeCargo.Nats.DistributedCache.UnitTests.Serialization;
 
 /// <summary>
 /// Tests for the NatsHybridCacheSerializerFactory

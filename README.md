@@ -1,6 +1,6 @@
-[![CodeCargo.NatsDistributedCache](https://img.shields.io/nuget/v/CodeCargo.NatsDistributedCache?color=516bf1&label=CodeCargo.NatsDistributedCache)](https://www.nuget.org/packages/CodeCargo.NatsDistributedCache/) [![CodeCargo.NatsHybridCache](https://img.shields.io/nuget/v/CodeCargo.NatsHybridCache?color=516bf1&label=CodeCargo.NatsHybridCache)](https://www.nuget.org/packages/CodeCargo.NatsHybridCache/)
+[![CodeCargo.Nats.DistributedCache](https://img.shields.io/nuget/v/CodeCargo.Nats.DistributedCache?color=516bf1&label=CodeCargo.Nats.DistributedCache)](https://www.nuget.org/packages/CodeCargo.Nats.DistributedCache/) [![CodeCargo.Nats.HybridCacheExtensions](https://img.shields.io/nuget/v/CodeCargo.Nats.HybridCacheExtensions?color=516bf1&label=CodeCargo.Nats.HybridCacheExtensions)](https://www.nuget.org/packages/CodeCargo.Nats.HybridCacheExtensions/)
 
-# CodeCargo.NatsDistributedCache
+# CodeCargo.Nats.DistributedCache
 
 ## Overview
 
@@ -20,8 +20,8 @@ A .NET 8+ library for using NATS with `HybridCache` or as an `IDistributedCache`
 
 ```bash
 # add NATS Distributed Cache
-dotnet add package CodeCargo.NatsDistributedCache
-dotnet add package CodeCargo.NatsHybridCache
+dotnet add package CodeCargo.Nats.DistributedCache
+dotnet add package CodeCargo.Nats.HybridCacheExtensions
 
 # optional - add full NATS.Net (NATS Distributed Cache uses a subset of NATS.Net dependencies)
 dotnet add package NATS.Net
@@ -32,7 +32,7 @@ dotnet add package Microsoft.Extensions.Caching.Hybrid
 
 ## Use with `HybridCache`
 
-The `CodeCargo.NatsHybridCache` package provides an extension method that:
+The `CodeCargo.Nats.HybridCacheExtensions` package provides an extension method that:
 
 1. Adds the NATS `IDistributedCache`
 2. Adds `HybridCache`
@@ -41,15 +41,15 @@ The `CodeCargo.NatsHybridCache` package provides an extension method that:
 ### Install
 
 ```bash
-dotnet add package CodeCargo.NatsDistributedCache
-dotnet add package CodeCargo.NatsHybridCache
+dotnet add package CodeCargo.Nats.DistributedCache
+dotnet add package CodeCargo.Nats.HybridCacheExtensions
 dotnet add package NATS.Net
 ```
 
 ### Example
 
 ```csharp
-using CodeCargo.NatsHybridCache;
+using CodeCargo.Nats.HybridCacheExtensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
@@ -85,14 +85,14 @@ await host.RunAsync();
 ### Install
 
 ```bash
-dotnet add package CodeCargo.NatsDistributedCache
+dotnet add package CodeCargo.Nats.DistributedCache
 dotnet add package NATS.Net
 ```
 
 ### Example
 
 ```csharp
-using CodeCargo.NatsDistributedCache;
+using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;

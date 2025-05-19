@@ -6,7 +6,7 @@ using NATS.Client.Core;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace CodeCargo.NatsDistributedCache.IntegrationTests.Cache;
+namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
 public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {

@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace CodeCargo.NatsDistributedCache.TestUtils.Assertions;
+namespace CodeCargo.Nats.DistributedCache.TestUtils.Assertions;
 
 public static class ExceptionAssert
 {
