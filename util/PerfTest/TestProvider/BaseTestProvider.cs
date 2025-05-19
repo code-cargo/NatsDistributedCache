@@ -18,6 +18,8 @@ public abstract class BaseTestProvider
         Console.WriteLine("Starting Aspire...");
         using var startupCts = new CancellationTokenSource(AspireStartupTimeout);
         var (app, connectionString) = await StartAspire(startupCts.Token);
+        Console.WriteLine("Aspire started");
+
         try
         {
             var builder = Host.CreateDefaultBuilder(args);

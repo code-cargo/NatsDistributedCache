@@ -30,7 +30,6 @@ public class NatsTestProvider : BaseTestProvider
             throw new InvalidOperationException("Cannot find connection string for NATS");
         }
 
-        Console.WriteLine("Aspire started");
         return (app, connectionString);
     }
 
