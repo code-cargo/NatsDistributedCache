@@ -21,17 +21,20 @@ public class CacheEntry
     [JsonPropertyName("sldexp")]
     public long? SlidingExpirationTicks { get; set; }
 
-    [JsonPropertyName("data")]
-    public byte[]? Data { get; set; }
+    [JsonIgnore]
+    public ReadOnlyMemory<byte> Data { get; set; }
 }
 
 /// <summary>
 /// JsonSerializerContext for CacheEntry
 /// </summary>
 [JsonSerializable(typeof(CacheEntry))]
-public partial class CacheEntryJsonContext : JsonSerializerContext
-{
-}
+public partial class CacheEntryJsonContext : JsonSerializerContext;
+
+// todo: make CacheEntrySerializer that implements INatsSerialize<CacheEntry> and INatsDeserialize<CacheEntry>
+// serialize: Json Serialize CacheEntry and put it on first line, write '\n', then write all entry.Data
+// deserialize: Find the first '\n', everything before gets json deserialized then splice the ReadOnlyMemory and put
+// everything after in Data
 
 /// <summary>
 /// Distributed cache implementation using NATS Key-Value Store.
@@ -88,7 +91,8 @@ public partial class NatsCache : IBufferDistributedCache
         try
         {
             // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-            await ((NatsKVStore)kvStore).PutAsync(GetPrefixedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
+            await ((NatsKVStore)kvStore)
+                .PutAsync(GetPrefixedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -160,9 +164,6 @@ public partial class NatsCache : IBufferDistributedCache
 
         return false;
     }
-
-    // This is the method used by hybrid caching to determine if it should use the distributed instance
-    internal virtual bool IsHybridCacheActive() => false;
 
     private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
@@ -293,7 +294,7 @@ public partial class NatsCache : IBufferDistributedCache
             }
 
             await UpdateEntryExpirationAsync(kvStore, prefixedKey, kvEntry, token).ConfigureAwait(false);
-            return getData ? kvEntry.Value.Data : null;
+            return getData ? kvEntry.Value.Data.ToArray() : null;
         }
         catch (NatsKVWrongLastRevisionException ex)
         {

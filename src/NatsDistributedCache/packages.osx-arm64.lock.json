@@ -2,6 +2,16 @@
   "version": 1,
   "dependencies": {
     "net8.0": {
+      "MemoryPack": {
+        "type": "Direct",
+        "requested": "[1.9.14, )",
+        "resolved": "1.9.14",
+        "contentHash": "KJD/He/f8qNWySzAz0XTieZaIhGsmQUnvkh5k7dWQMKQ/XUXEExsp2WEGSkOiKs7yeEEv8bH1cH660SlVNX5xA==",
+        "dependencies": {
+          "MemoryPack.Core": "1.9.14",
+          "MemoryPack.Generator": "1.9.14"
+        }
+      },
       "Microsoft.Extensions.Caching.Abstractions": {
         "type": "Direct",
         "requested": "[9.0.4, )",
@@ -58,6 +68,16 @@
         "dependencies": {
           "StyleCop.Analyzers.Unstable": "1.2.0.556"
         }
+      },
+      "MemoryPack.Core": {
+        "type": "Transitive",
+        "resolved": "1.9.14",
+        "contentHash": "YRnvYZ1lnJ7QDn16EH1k6tVo+X8nZBEfhpjlVm1xatCmXkX/gm6S/p0gjIJpRhs2AZEsaGiYxAG3fbPXJL+XOw=="
+      },
+      "MemoryPack.Generator": {
+        "type": "Transitive",
+        "resolved": "1.9.14",
+        "contentHash": "WqHR4pRoH/rrhl60ArSTzFyTYuQZxgxE43fEBkND/a3bPWSWbj6FSFatUkRlf63g39No8qZmE1p/zQw0tBY6Kg=="
       },
       "Microsoft.Build.Tasks.Git": {
         "type": "Transitive",
