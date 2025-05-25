@@ -43,6 +43,7 @@ public partial class NatsCache : IBufferDistributedCache
         new(CacheEntryJsonContext.Default);
 
     private readonly string _bucketName;
+    private readonly INatsCacheKeyEncoder _keyEncoder;
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
     private readonly INatsConnection _natsConnection;
@@ -50,8 +51,9 @@ public partial class NatsCache : IBufferDistributedCache
 
     public NatsCache(
         IOptions<NatsCacheOptions> optionsAccessor,
-        ILogger<NatsCache> logger,
-        INatsConnection natsConnection)
+        INatsConnection natsConnection,
+        ILogger<NatsCache>? logger = null,
+        INatsCacheKeyEncoder? keyEncoder = null)
     {
         var options = optionsAccessor.Value;
         _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
@@ -61,13 +63,9 @@ public partial class NatsCache : IBufferDistributedCache
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');
         _lazyKvStore = CreateLazyKvStore();
-        _logger = logger;
         _natsConnection = natsConnection;
-    }
-
-    public NatsCache(IOptions<NatsCacheOptions> optionsAccessor, INatsConnection natsConnection)
-        : this(optionsAccessor, NullLogger<NatsCache>.Instance, natsConnection)
-    {
+        _logger = logger ?? NullLogger<NatsCache>.Instance;
+        _keyEncoder = keyEncoder ?? new NatsCacheKeyEncoder();
     }
 
     /// <inheritdoc />
@@ -88,7 +86,8 @@ public partial class NatsCache : IBufferDistributedCache
         try
         {
             // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-            await ((NatsKVStore)kvStore).PutAsync(GetPrefixedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
+            await ((NatsKVStore)kvStore)
+                .PutAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -125,14 +124,14 @@ public partial class NatsCache : IBufferDistributedCache
 
     /// <inheritdoc />
     public Task RefreshAsync(string key, CancellationToken token = default) =>
-        GetAndRefreshAsync(key, getData: false, retry: true, token: token);
+        GetAndRefreshAsync(key, token: token);
 
     /// <inheritdoc />
     public byte[]? Get(string key) => GetAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
     public Task<byte[]?> GetAsync(string key, CancellationToken token = default) =>
-        GetAndRefreshAsync(key, getData: true, retry: true, token: token);
+        GetAndRefreshAsync(key, token: token);
 
     /// <inheritdoc />
     public bool TryGet(string key, IBufferWriter<byte> destination) =>
@@ -160,9 +159,6 @@ public partial class NatsCache : IBufferDistributedCache
 
         return false;
     }
-
-    // This is the method used by hybrid caching to determine if it should use the distributed instance
-    internal virtual bool IsHybridCacheActive() => false;
 
     private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
@@ -233,9 +229,10 @@ public partial class NatsCache : IBufferDistributedCache
         return cacheEntry;
     }
 
-    private string GetPrefixedKey(string key) => string.IsNullOrEmpty(_keyPrefix)
-        ? key
-        : _keyPrefix + "." + key;
+    private string GetEncodedKey(string key) =>
+        string.IsNullOrEmpty(_keyPrefix)
+            ? _keyEncoder.Encode(key)
+            : _keyEncoder.Encode($"{_keyPrefix}.{key}");
 
     private Lazy<Task<INatsKVStore>> CreateLazyKvStore() =>
         new(async () =>
@@ -259,18 +256,14 @@ public partial class NatsCache : IBufferDistributedCache
 
     private Task<INatsKVStore> GetKvStore() => _lazyKvStore.Value;
 
-    private async Task<byte[]?> GetAndRefreshAsync(
-        string key,
-        bool getData,
-        bool retry,
-        CancellationToken token = default)
+    private async Task<byte[]?> GetAndRefreshAsync(string key, CancellationToken token)
     {
+        var encodedKey = GetEncodedKey(key);
         var kvStore = await GetKvStore().ConfigureAwait(false);
-        var prefixedKey = GetPrefixedKey(key);
         try
         {
             var natsResult = await kvStore
-                .TryGetEntryAsync(prefixedKey, serializer: CacheEntrySerializer, cancellationToken: token)
+                .TryGetEntryAsync(encodedKey, serializer: CacheEntrySerializer, cancellationToken: token)
                 .ConfigureAwait(false);
             if (!natsResult.Success)
             {
@@ -292,19 +285,12 @@ public partial class NatsCache : IBufferDistributedCache
                 return null;
             }
 
-            await UpdateEntryExpirationAsync(kvStore, prefixedKey, kvEntry, token).ConfigureAwait(false);
-            return getData ? kvEntry.Value.Data : null;
+            await UpdateEntryExpirationAsync(kvEntry).ConfigureAwait(false);
+            return kvEntry.Value.Data;
         }
-        catch (NatsKVWrongLastRevisionException ex)
+        catch (NatsKVWrongLastRevisionException)
         {
-            // Optimistic concurrency control failed, someone else updated it
-            LogUpdateFailed(key);
-            if (retry)
-            {
-                return await GetAndRefreshAsync(key, getData, retry: false, token).ConfigureAwait(false);
-            }
-
-            LogException(ex);
+            // Someone else updated it; that's fine, we'll get the latest version next time
             return null;
         }
         catch (Exception ex)
@@ -312,63 +298,52 @@ public partial class NatsCache : IBufferDistributedCache
             LogException(ex);
             throw;
         }
-    }
 
-    private async Task UpdateEntryExpirationAsync(
-        INatsKVStore kvStore,
-        string key,
-        NatsKVEntry<CacheEntry> kvEntry,
-        CancellationToken token)
-    {
-        if (kvEntry.Value?.SlidingExpirationTicks == null)
+        // Local Functions
+        async Task UpdateEntryExpirationAsync(NatsKVEntry<CacheEntry> kvEntry)
         {
-            return;
-        }
-
-        // If we have a sliding expiration, use it as the TTL
-        var ttl = TimeSpan.FromTicks(kvEntry.Value.SlidingExpirationTicks.Value);
-
-        // If we also have an absolute expiration, make sure we don't exceed it
-        if (kvEntry.Value.AbsoluteExpiration != null)
-        {
-            var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - DateTimeOffset.Now;
-
-            // Use the minimum of sliding window or remaining absolute time
-            if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
+            if (kvEntry.Value?.SlidingExpirationTicks == null)
             {
-                ttl = remainingTime;
+                return;
             }
-        }
 
-        if (ttl > TimeSpan.Zero)
-        {
-            // Use optimistic concurrency control with the last revision
-            try
+            // If we have a sliding expiration, use it as the TTL
+            var ttl = TimeSpan.FromTicks(kvEntry.Value.SlidingExpirationTicks.Value);
+
+            // If we also have an absolute expiration, make sure we don't exceed it
+            if (kvEntry.Value.AbsoluteExpiration != null)
             {
+                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - DateTimeOffset.Now;
+
+                // Use the minimum of sliding window or remaining absolute time
+                if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
+                {
+                    ttl = remainingTime;
+                }
+            }
+
+            if (ttl > TimeSpan.Zero)
+            {
+                // Use optimistic concurrency control with the last revision
                 // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
                 await ((NatsKVStore)kvStore).UpdateAsync(
-                    key,
+                    encodedKey,
                     kvEntry.Value,
                     kvEntry.Revision,
                     ttl,
                     serializer: CacheEntrySerializer,
                     cancellationToken: token).ConfigureAwait(false);
             }
-            catch (NatsKVWrongLastRevisionException)
-            {
-                // Someone else updated it; that's fine, we'll get the latest version next time
-                LogUpdateFailed(key.Replace(GetPrefixedKey(string.Empty), string.Empty));
-            }
         }
     }
 
     private async Task RemoveAsync(
-        string key,
-        NatsKVDeleteOpts? natsKvDeleteOpts = null,
-        CancellationToken token = default)
+            string key,
+            NatsKVDeleteOpts? natsKvDeleteOpts = null,
+            CancellationToken token = default)
     {
         var kvStore = await GetKvStore().ConfigureAwait(false);
-        await kvStore.DeleteAsync(GetPrefixedKey(key), natsKvDeleteOpts, cancellationToken: token)
+        await kvStore.DeleteAsync(GetEncodedKey(key), natsKvDeleteOpts, cancellationToken: token)
             .ConfigureAwait(false);
     }
 }
