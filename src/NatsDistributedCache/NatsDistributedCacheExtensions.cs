@@ -30,15 +30,13 @@ public static class NatsDistributedCacheExtensions
         services.AddSingleton<IDistributedCache>(sp =>
         {
             var optionsAccessor = sp.GetRequiredService<IOptions<NatsCacheOptions>>();
-            var logger = sp.GetService<ILogger<NatsCache>>();
-
             var natsConnection = connectionServiceKey == null
                 ? sp.GetRequiredService<INatsConnection>()
                 : sp.GetRequiredKeyedService<INatsConnection>(connectionServiceKey);
+            var logger = sp.GetService<ILogger<NatsCache>>();
+            var keyEncoder = sp.GetService<INatsCacheKeyEncoder>();
 
-            return logger != null
-                ? new NatsCache(optionsAccessor, logger, natsConnection)
-                : new NatsCache(optionsAccessor, natsConnection);
+            return new NatsCache(optionsAccessor, natsConnection, logger: logger, keyEncoder: keyEncoder);
         });
 
         return services;
