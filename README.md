@@ -89,7 +89,7 @@ const string natsUrl = "nats://localhost:4222";
 var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
-    services.AddNats(configureOpts: options => options with { Url = natsUrl });
+    services.AddNatsClient(configureOpts: options => options with { Url = natsUrl });
 
     services.AddNatsDistributedCache(options =>
     {

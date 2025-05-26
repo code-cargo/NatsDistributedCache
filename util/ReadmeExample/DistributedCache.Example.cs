@@ -2,13 +2,12 @@ using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
-using NATS.Client.Hosting;
+using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-// The abbreviated example put into the README.md
-// Based on Program.cs
-public static class Abbreviated
+// Example used in the README.md "Use `IDistributedCache` Directly" section
+public static class DistributedCacheExample
 {
     public static async Task Run(string[] args)
     {
@@ -23,20 +22,13 @@ public static class Abbreviated
         builder.ConfigureServices(services =>
         {
             // Add NATS client
-            services.AddNats(configureOpts: options => options with { Url = natsUrl });
+            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsUrl }));
 
             // Add a NATS distributed cache
             services.AddNatsDistributedCache(options =>
             {
                 options.BucketName = "cache";
             });
-
-            // (Optional) Add HybridCache
-            var hybridCacheServices = services.AddHybridCache();
-
-            // (Optional) Use NATS Serializer for HybridCache
-            hybridCacheServices.AddSerializerFactory(
-                NatsOpts.Default.SerializerRegistry.ToHybridCacheSerializerFactory());
 
             // Add other services as needed
         });
