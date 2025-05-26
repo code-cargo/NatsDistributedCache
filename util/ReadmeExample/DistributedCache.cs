@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Client.Hosting;
 using NATS.Client.KeyValueStore;
+using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
 namespace CodeCargo.ReadmeExample;
@@ -39,7 +39,7 @@ public static class DistributedCacheStartup
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
-            services.AddNats(configureOpts: options => options with { Url = natsConnectionString });
+            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsConnectionString }));
             services.AddNatsDistributedCache(options =>
             {
                 options.BucketName = "cache";

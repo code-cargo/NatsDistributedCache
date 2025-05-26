@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Client.Hosting;
 using NATS.Client.KeyValueStore;
+using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
 namespace CodeCargo.ReadmeExample;
@@ -39,7 +39,7 @@ public static class HybridCacheStartup
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
-            services.AddNats(configureOpts: options => options with { Url = natsConnectionString });
+            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsConnectionString }));
             services.AddNatsHybridCache(options =>
             {
                 options.BucketName = "cache";
@@ -117,31 +117,24 @@ public static class HybridCacheStartup
     }
 }
 
-public class HybridCacheService
+public class HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger)
 {
-    private readonly HybridCache _cache;
-    private readonly ILogger<HybridCacheService> _logger;
-
-    public HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger)
-    {
-        _cache = cache;
-        _logger = logger;
-    }
-
     public async Task Run()
     {
-        _logger.LogInformation("------------------------------------------");
-        _logger.LogInformation("HybridCache example");
+        logger.LogInformation("------------------------------------------");
+        logger.LogInformation("HybridCache example");
 
         const string key = "hybrid-cache-greeting";
 
-        var result = await _cache.GetOrCreateAsync<string>(
+        var result = await cache.GetOrCreateAsync<Person>(
             key,
-            _ => ValueTask.FromResult("Hello from NATS Hybrid Cache!"),
+            _ => ValueTask.FromResult(new Person("John Doe", 30)),
             new HybridCacheEntryOptions { Expiration = TimeSpan.FromMinutes(1) });
-        _logger.LogInformation("Got/created value from cache: {Result}", result);
+        logger.LogInformation("Got/created value from cache: {Result}", result);
 
-        await _cache.RemoveAsync(key);
-        _logger.LogInformation("Removed value from cache");
+        await cache.RemoveAsync(key);
+        logger.LogInformation("Removed value from cache");
     }
+
+    private record Person(string Name, int Age);
 }

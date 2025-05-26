@@ -28,7 +28,7 @@ The `CodeCargo.Nats.HybridCacheExtensions` package provides an extension method 
 
 ```bash
 dotnet add package CodeCargo.Nats.HybridCacheExtensions
-dotnet add package NATS.Net
+dotnet add package NATS.Extensions.Microsoft.DependencyInjection
 ```
 
 ### Example
@@ -46,7 +46,7 @@ const string natsUrl = "nats://localhost:4222";
 var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
-    services.AddNats(configureOpts: options => options with { Url = natsUrl });
+    services.AddNatsClient(configureOpts: options => options with { Url = natsUrl });
 
     services.AddNatsHybridCache(options =>
     {
