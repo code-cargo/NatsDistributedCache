@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Client.Hosting;
 using NATS.Client.KeyValueStore;
+using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
 namespace CodeCargo.ReadmeExample;
@@ -36,10 +36,12 @@ public static class HybridCacheStartup
             throw new InvalidOperationException("Cannot find connection string for NATS");
         }
 
+        // Create a host builder for a Console application
+        // For a Web Application you can use WebApplication.CreateBuilder(args)
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
-            services.AddNats(configureOpts: options => options with { Url = natsConnectionString });
+            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsConnectionString }));
             services.AddNatsHybridCache(options =>
             {
                 options.BucketName = "cache";
@@ -51,6 +53,7 @@ public static class HybridCacheStartup
         var host = builder.Build();
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 
+        // Ensure that the KV Store is created
         Console.WriteLine("Creating KV store...");
         var natsConnection = host.Services.GetRequiredService<INatsConnection>();
         var kvContext = natsConnection.CreateKeyValueStoreContext();
@@ -58,6 +61,7 @@ public static class HybridCacheStartup
             new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) }, startupCts.Token);
         Console.WriteLine("KV store created");
 
+        // Start the host
         Console.WriteLine("Starting app...");
         using var appCts = new CancellationTokenSource();
         var appTask = Task.Run(async () =>
@@ -117,31 +121,25 @@ public static class HybridCacheStartup
     }
 }
 
-public class HybridCacheService
+public class HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger)
 {
-    private readonly HybridCache _cache;
-    private readonly ILogger<HybridCacheService> _logger;
-
-    public HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger)
-    {
-        _cache = cache;
-        _logger = logger;
-    }
-
     public async Task Run()
     {
-        _logger.LogInformation("------------------------------------------");
-        _logger.LogInformation("HybridCache example");
+        logger.LogInformation("------------------------------------------");
+        logger.LogInformation("HybridCache example");
 
         const string key = "hybrid-cache-greeting";
 
-        var result = await _cache.GetOrCreateAsync<string>(
+        var result = await cache.GetOrCreateAsync<Person>(
             key,
-            _ => ValueTask.FromResult("Hello from NATS Hybrid Cache!"),
+            _ => ValueTask.FromResult(new Person("John Doe", 30)),
             new HybridCacheEntryOptions { Expiration = TimeSpan.FromMinutes(1) });
-        _logger.LogInformation("Got/created value from cache: {Result}", result);
+        logger.LogInformation("Got/created value from cache: {Result}", result);
 
-        await _cache.RemoveAsync(key);
-        _logger.LogInformation("Removed value from cache");
+        await cache.RemoveAsync(key);
+        logger.LogInformation("Removed value from cache");
+        logger.LogInformation("------------------------------------------");
     }
+
+    private record Person(string Name, int Age);
 }

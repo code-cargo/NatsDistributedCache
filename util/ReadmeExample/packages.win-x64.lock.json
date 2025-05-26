@@ -36,20 +36,14 @@
           "System.IO.Hashing": "9.0.3"
         }
       },
-      "NATS.Net": {
+      "NATS.Extensions.Microsoft.DependencyInjection": {
         "type": "Direct",
         "requested": "[2.6.0, )",
         "resolved": "2.6.0",
-        "contentHash": "rE1jwq7HMLMfOscaC5dOh1VSOrkA4a2EeKnehaFuiygo3VC2g9ONae5KsNSEdioOoHlRq6xDG9Wu4qNa+1tuCQ==",
+        "contentHash": "riwSWcfutHlt3gQQU3wgImjgNNLnS6y/5G5Rj7XEGNnoNCEJvtdVHQyaICHg05ehexLiDf4idJrR/KVTldWD2w==",
         "dependencies": {
-          "NATS.Client.Core": "2.6.0",
-          "NATS.Client.Hosting": "2.6.0",
-          "NATS.Client.JetStream": "2.6.0",
-          "NATS.Client.KeyValueStore": "2.6.0",
-          "NATS.Client.ObjectStore": "2.6.0",
-          "NATS.Client.Serializers.Json": "2.6.0",
-          "NATS.Client.Services": "2.6.0",
-          "NATS.Client.Simplified": "2.6.0"
+          "Microsoft.Extensions.Hosting.Abstractions": "8.0.0",
+          "NATS.Net": "2.6.0"
         }
       },
       "StyleCop.Analyzers": {
@@ -835,6 +829,21 @@
         "dependencies": {
           "NATS.Client.Core": "2.6.0",
           "NATS.Client.Serializers.Json": "2.6.0"
+        }
+      },
+      "NATS.Net": {
+        "type": "Transitive",
+        "resolved": "2.6.0",
+        "contentHash": "rE1jwq7HMLMfOscaC5dOh1VSOrkA4a2EeKnehaFuiygo3VC2g9ONae5KsNSEdioOoHlRq6xDG9Wu4qNa+1tuCQ==",
+        "dependencies": {
+          "NATS.Client.Core": "2.6.0",
+          "NATS.Client.Hosting": "2.6.0",
+          "NATS.Client.JetStream": "2.6.0",
+          "NATS.Client.KeyValueStore": "2.6.0",
+          "NATS.Client.ObjectStore": "2.6.0",
+          "NATS.Client.Serializers.Json": "2.6.0",
+          "NATS.Client.Services": "2.6.0",
+          "NATS.Client.Simplified": "2.6.0"
         }
       },
       "Nerdbank.Streams": {
