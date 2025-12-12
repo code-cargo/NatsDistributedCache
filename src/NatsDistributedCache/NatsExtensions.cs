@@ -100,7 +100,7 @@ public static class NatsExtensions
     /// </summary>
     private static NatsResult TryValidateKey(string key)
     {
-        if (string.IsNullOrWhiteSpace(key) || key.Length == 0)
+        if (string.IsNullOrWhiteSpace(key))
         {
             return KeyCannotBeEmptyException;
         }
