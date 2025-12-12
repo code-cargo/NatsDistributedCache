@@ -87,7 +87,7 @@ public partial class NatsCache : IBufferDistributedCache
         {
             // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
             await ((NatsKVStore)kvStore)
-                .PutAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
+                .PutWithTtlAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
