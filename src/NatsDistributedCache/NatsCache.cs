@@ -326,7 +326,7 @@ public partial class NatsCache : IBufferDistributedCache
             {
                 // Use optimistic concurrency control with the last revision
                 // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-                await ((NatsKVStore)kvStore).UpdateAsync(
+                await kvStore.UpdateWithTtlAsync(
                     encodedKey,
                     kvEntry.Value,
                     kvEntry.Revision,

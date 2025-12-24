@@ -41,7 +41,10 @@ public static class HybridCacheStartup
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
-            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsConnectionString }));
+            services.AddNatsClient(natsBuilder =>
+                natsBuilder.ConfigureOptions(optsBuilder => optsBuilder.Configure(opts =>
+                    opts.Opts = opts.Opts with { Url = natsConnectionString })));
+
             services.AddNatsHybridCache(options =>
             {
                 options.BucketName = "cache";

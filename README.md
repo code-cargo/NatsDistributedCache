@@ -50,7 +50,9 @@ const string natsUrl = "nats://localhost:4222";
 var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
-    services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsUrl }));
+    services.AddNatsClient(natsBuilder =>
+        natsBuilder.ConfigureOptions(optsBuilder => optsBuilder.Configure(opts =>
+            opts.Opts = opts.Opts with { Url = natsUrl })));
     services.AddNatsHybridCache(options =>
     {
         options.BucketName = "cache";
@@ -99,7 +101,9 @@ const string natsUrl = "nats://localhost:4222";
 var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureServices(services =>
 {
-    services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsUrl }));
+    services.AddNatsClient(natsBuilder =>
+        natsBuilder.ConfigureOptions(optsBuilder => optsBuilder.Configure(opts =>
+            opts.Opts = opts.Opts with { Url = natsUrl })));
     services.AddNatsDistributedCache(options =>
     {
         options.BucketName = "cache";
