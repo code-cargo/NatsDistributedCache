@@ -18,7 +18,7 @@ var natsConfigDir = Path.GetFullPath(Path.Combine(slnDir, "dev", "nats-integrati
 var natsResource = new NatsResource("Nats");
 builder.AddResource(natsResource)
     .WithImage("nats")
-    .WithImageTag("2.11.3")
+    .WithImageTag("2.12.3")
     .WithBindMount(natsConfigDir, "/etc/nats-config", isReadOnly: true)
     .WithArgs("-c", "/etc/nats-config/nats.conf")
     .WithEndpoint(port: 14222, targetPort: 4222, name: NatsResource.NatsEndpointName, scheme: "tcp");

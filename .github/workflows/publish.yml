@@ -17,12 +17,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: 8.x.x
+        cache: true
+        cache-dependency-path: '**/packages.linux-x64.lock.json'
+        dotnet-version: |
+          8.x
+          10.x
 
     - name: Write strong name key file
       run: |
@@ -30,12 +34,12 @@ jobs:
         # Base64 decode the strong name key and save to keys directory
         echo "$STRONG_NAME_KEY" | base64 -d > keys/NatsDistributedCache.2025-05-12.snk
         chmod 600 keys/NatsDistributedCache.2025-05-12.snk
-        
+
         # Verify using the Docker-based script
         ./dev/verify-snk.sh
       env:
         STRONG_NAME_KEY: ${{secrets.STRONG_NAME_KEY}}
-        
+
     - name: Pack
       run: dotnet pack -c Release -p:version=${GITHUB_REF#refs/*/v} -o ./publish
 

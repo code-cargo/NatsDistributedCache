@@ -19,7 +19,9 @@ public static class HybridCacheExample
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
-            services.AddNatsClient(natsBuilder => natsBuilder.ConfigureOptions(opts => opts with { Url = natsUrl }));
+            services.AddNatsClient(natsBuilder =>
+                natsBuilder.ConfigureOptions(optsBuilder => optsBuilder.Configure(opts =>
+                    opts.Opts = opts.Opts with { Url = natsUrl })));
             services.AddNatsHybridCache(options =>
             {
                 options.BucketName = "cache";
@@ -31,7 +33,10 @@ public static class HybridCacheExample
         // Ensure that the KV Store is created
         var natsConnection = host.Services.GetRequiredService<INatsConnection>();
         var kvContext = natsConnection.CreateKeyValueStoreContext();
-        await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
+        await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache")
+        {
+            LimitMarkerTTL = TimeSpan.FromSeconds(1)
+        });
 
         // Start the host
         await host.RunAsync();

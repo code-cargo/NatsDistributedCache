@@ -24,36 +24,38 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
-    
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v6
 
-      - name: Setup dotnet
-        uses: actions/setup-dotnet@v4
-        with:
-          cache: true
-          cache-dependency-path: '**/packages.linux-x64.lock.json'
-          dotnet-version: '8.x'
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v5
+      with:
+        cache: true
+        cache-dependency-path: '**/packages.linux-x64.lock.json'
+        dotnet-version: |
+          8.x
+          10.x
 
-      - name: Build
-        run: dotnet build -p TreatWarningsAsErrors=true
+    - name: Build
+      run: dotnet build -p TreatWarningsAsErrors=true
 
-      - name: Check for BOMs
-        run: ./dev/check-bom.sh
+    - name: Check for BOMs
+      run: ./dev/check-bom.sh
 
-      - name: Check formatting
-        run: |
-          if dotnet format --no-restore --verify-no-changes; then
-            echo "formatting passed"
-          else
-            rc="$?"
-            echo "formatting failed; run 'dotnet format'" >&2
-            exit "$rc"
-          fi
+    - name: Check formatting
+      run: |
+        if dotnet format --no-restore --verify-no-changes; then
+          echo "formatting passed"
+        else
+          rc="$?"
+          echo "formatting failed; run 'dotnet format'" >&2
+          exit "$rc"
+        fi
 
-      - name: Unit Tests
-        run: dotnet test --no-build test/UnitTests/UnitTests.csproj
+    - name: Unit Tests
+      run: dotnet test --no-build test/UnitTests/UnitTests.csproj
 
-      - name: Integration Tests
-        run: dotnet test --no-build test/IntegrationTests/IntegrationTests.csproj
+    - name: Integration Tests
+      run: dotnet test --no-build test/IntegrationTests/IntegrationTests.csproj
