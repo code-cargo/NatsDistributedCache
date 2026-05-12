@@ -21,11 +21,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
 
     steps:
+    - name: CargoWall
+      uses: code-cargo/cargowall-action@fc9644606d84536b4e59a30ad2802904f7b4ff22 # v1.2.0
     - name: Checkout
       uses: actions/checkout@v6
 
