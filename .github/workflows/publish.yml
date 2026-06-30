@@ -15,6 +15,7 @@ jobs:
     name: NuGet
     environment: nuget
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     permissions:
       contents: read
@@ -23,10 +24,12 @@ jobs:
     steps:
     - name: CargoWall
       uses: code-cargo/cargowall-action@c0bd989036354f795a5150d478fce5bd510586af # v1.3.2-rc.3
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
 
     - name: Setup dotnet
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
       with:
         cache: true
         cache-dependency-path: '**/packages.linux-x64.lock.json'
@@ -49,7 +52,11 @@ jobs:
     - name: Pack
       run: dotnet pack -c Release -p:version=${GITHUB_REF#refs/*/v} -o ./publish
 
+    - name: Log in to NuGet.org with Trusted Publishing (OIDC)
+      uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+      id: nuget-login
+      with:
+        user: CodeCargo
+
     - name: Publish to NuGet.org
-      run: dotnet nuget push ./publish/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
-      env:
-        NUGET_API_KEY: ${{secrets.NUGET_API_KEY}}
+      run: dotnet nuget push ./publish/*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

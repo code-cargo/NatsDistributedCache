@@ -4,7 +4,7 @@
 
 ## Overview
 
-A .NET 8+ library for using NATS with `HybridCache` or as an `IDistributedCache` directly.
+A .NET 8+ library (tested on .NET 8 and .NET 10) for using NATS with `HybridCache` or as an `IDistributedCache` directly.
 
 ## Requirements
 
@@ -123,5 +123,5 @@ await host.RunAsync();
 
 ## Additional Resources
 
-* [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0)
+* [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0)
 * [NATS .NET Client Documentation](https://nats-io.github.io/nats.net/api/NATS.Client.Core.NatsOpts.html)
