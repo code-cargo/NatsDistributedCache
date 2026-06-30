@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: CargoWall
-      uses: code-cargo/cargowall-action@41060a3cd1b22ea4922be4a8769c149983ef4eae # v1.3.0
+      uses: code-cargo/cargowall-action@c0bd989036354f795a5150d478fce5bd510586af # v1.3.2-rc.3
     - name: Checkout
       uses: actions/checkout@v7
 
