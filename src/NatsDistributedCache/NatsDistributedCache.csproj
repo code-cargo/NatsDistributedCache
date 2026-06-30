@@ -39,4 +39,14 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- Expose internals to the unit tests for white-box time/expiration testing.
+       A signed (strong-named) assembly cannot grant InternalsVisibleTo to the unsigned UnitTests
+       assembly, so this is gated to unsigned builds. That covers every build that actually compiles
+       the tests: CI (build.yml) and local dev never write the .snk, and the signed publish job
+       (publish.yml) runs `dotnet pack`, which does not build test projects. Caveat: dropping the
+       .snk into keys/ locally flips the build to signed and will break the UnitTests compile. -->
+  <ItemGroup Condition="'$(SignAssembly)' != 'true'">
+    <InternalsVisibleTo Include="UnitTests" />
+  </ItemGroup>
+
 </Project>

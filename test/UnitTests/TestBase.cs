@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NATS.Client.Core;
 
@@ -16,15 +16,22 @@ public abstract class TestBase
         mockNatsConnection.SetupGet(m => m.Opts).Returns(opts);
         var connection = new NatsConnection(opts);
         mockNatsConnection.SetupGet(m => m.Connection).Returns(connection);
+        TimeProvider = new FakeTimeProvider();
         Cache = new NatsCache(
             Options.Create(new NatsCacheOptions { BucketName = "cache" }),
-            mockNatsConnection.Object);
+            mockNatsConnection.Object,
+            timeProvider: TimeProvider);
     }
+
+    /// <summary>
+    /// Gets the fake time provider driving the cache's clock
+    /// </summary>
+    protected FakeTimeProvider TimeProvider { get; }
 
     /// <summary>
     /// Gets the cache
     /// </summary>
-    protected IDistributedCache Cache { get; }
+    protected NatsCache Cache { get; }
 
     /// <summary>
     /// Gets the key for the current test method

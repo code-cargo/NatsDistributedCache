@@ -2,6 +2,7 @@ using System.Buffers;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NATS.Client.Core;
 
@@ -129,6 +130,49 @@ public class CacheServiceExtensionsUnitTests
         var optionsRegistration = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IConfigureOptions<NatsCacheOptions>));
         Assert.NotNull(optionsRegistration);
+    }
+
+    [Fact]
+    public void AddNatsCache_UsesRegisteredTimeProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        var timeProvider = new FakeTimeProvider();
+        services.AddSingleton<TimeProvider>(timeProvider);
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+
+        var cache = (NatsCache)services.BuildServiceProvider().GetRequiredService<IDistributedCache>();
+        var entry = cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(30)));
+
+        // Act / Assert - advancing the registered provider expires the entry, proving it is wired in
+        Assert.False(cache.IsExpired(entry));
+        timeProvider.Advance(TimeSpan.FromSeconds(31));
+        Assert.True(cache.IsExpired(entry));
+    }
+
+    [Fact]
+    public void AddNatsCache_DefaultsToSystemTimeProviderWhenNoneRegistered()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+
+        var cache = (NatsCache)services.BuildServiceProvider().GetRequiredService<IDistributedCache>();
+
+        // Act - with no registered TimeProvider the cache must fall back to TimeProvider.System (real UTC clock)
+        var before = DateTimeOffset.UtcNow;
+        var entry = cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(5)));
+        var after = DateTimeOffset.UtcNow;
+
+        // Assert - the absolute expiration is derived from the system clock, proving the default is wired in
+        Assert.NotNull(entry.AbsoluteExpiration);
+        Assert.InRange(entry.AbsoluteExpiration!.Value, before.AddMinutes(5), after.AddMinutes(5));
     }
 
     [Fact]

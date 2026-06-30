@@ -47,13 +47,15 @@ public partial class NatsCache : IBufferDistributedCache
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
     private readonly INatsConnection _natsConnection;
+    private readonly TimeProvider _timeProvider;
     private Lazy<Task<INatsKVStore>> _lazyKvStore;
 
     public NatsCache(
         IOptions<NatsCacheOptions> optionsAccessor,
         INatsConnection natsConnection,
         ILogger<NatsCache>? logger = null,
-        INatsCacheKeyEncoder? keyEncoder = null)
+        INatsCacheKeyEncoder? keyEncoder = null,
+        TimeProvider? timeProvider = null)
     {
         var options = optionsAccessor.Value;
         _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
@@ -66,6 +68,7 @@ public partial class NatsCache : IBufferDistributedCache
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
         _keyEncoder = keyEncoder ?? new NatsCacheKeyEncoder();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -160,9 +163,9 @@ public partial class NatsCache : IBufferDistributedCache
         return false;
     }
 
-    private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
+    internal TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
-        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= DateTimeOffset.Now)
+        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= _timeProvider.GetUtcNow())
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
@@ -190,7 +193,7 @@ public partial class NatsCache : IBufferDistributedCache
         var absoluteExpiration = options.AbsoluteExpiration;
         if (options.AbsoluteExpirationRelativeToNow.HasValue)
         {
-            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
+            absoluteExpiration = _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value);
         }
 
         if (!absoluteExpiration.HasValue)
@@ -198,7 +201,7 @@ public partial class NatsCache : IBufferDistributedCache
             return options.SlidingExpiration;
         }
 
-        var ttl = absoluteExpiration.Value - DateTimeOffset.Now;
+        var ttl = absoluteExpiration.Value - _timeProvider.GetUtcNow();
         if (ttl.TotalMilliseconds <= 0)
         {
             // Value is in the past, remove it
@@ -211,12 +214,12 @@ public partial class NatsCache : IBufferDistributedCache
             : ttl;
     }
 
-    private static CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
+    internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
     {
         var absoluteExpiration = options.AbsoluteExpiration;
         if (options.AbsoluteExpirationRelativeToNow.HasValue)
         {
-            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
+            absoluteExpiration = _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value);
         }
 
         var cacheEntry = new CacheEntry
@@ -228,6 +231,9 @@ public partial class NatsCache : IBufferDistributedCache
 
         return cacheEntry;
     }
+
+    internal bool IsExpired(CacheEntry entry) =>
+        entry.AbsoluteExpiration.HasValue && _timeProvider.GetUtcNow() > entry.AbsoluteExpiration.Value;
 
     private string GetEncodedKey(string key) =>
         string.IsNullOrEmpty(_keyPrefix)
@@ -277,7 +283,7 @@ public partial class NatsCache : IBufferDistributedCache
             }
 
             // Check absolute expiration
-            if (kvEntry.Value.AbsoluteExpiration != null && DateTimeOffset.Now > kvEntry.Value.AbsoluteExpiration)
+            if (IsExpired(kvEntry.Value))
             {
                 // NatsKVWrongLastRevisionException is caught below
                 var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
@@ -313,7 +319,7 @@ public partial class NatsCache : IBufferDistributedCache
             // If we also have an absolute expiration, make sure we don't exceed it
             if (kvEntry.Value.AbsoluteExpiration != null)
             {
-                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - DateTimeOffset.Now;
+                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - _timeProvider.GetUtcNow();
 
                 // Use the minimum of sliding window or remaining absolute time
                 if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
