@@ -217,8 +217,11 @@ public partial class NatsCache : IBufferDistributedCache
             SlidingExpirationTicks = options.SlidingExpiration?.Ticks
         };
 
-    internal bool IsExpired(CacheEntry entry) =>
-        entry.AbsoluteExpiration.HasValue && _timeProvider.GetUtcNow() > entry.AbsoluteExpiration.Value;
+    // An entry is absolutely expired once the clock reaches its absolute expiration instant. The
+    // boundary is inclusive (>=) to match GetTtl, which treats an absolute expiration at "now" as
+    // already elapsed. Sliding expiration is enforced separately via the NATS entry TTL.
+    internal bool IsAbsolutelyExpired(CacheEntry entry) =>
+        entry.AbsoluteExpiration.HasValue && _timeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
 
     // Resolves the effective absolute expiration instant: a relative expiration (offset from the
     // current clock) takes precedence over an explicit absolute expiration when both are set.
@@ -275,7 +278,7 @@ public partial class NatsCache : IBufferDistributedCache
             }
 
             // Check absolute expiration
-            if (IsExpired(kvEntry.Value))
+            if (IsAbsolutelyExpired(kvEntry.Value))
             {
                 // NatsKVWrongLastRevisionException is caught below
                 var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };

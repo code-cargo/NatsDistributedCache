@@ -15,11 +15,24 @@ public class TimeProviderExpirationUnitTests : TestBase
             new byte[1],
             new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(30)));
 
-        Assert.False(Cache.IsExpired(entry));
+        Assert.False(Cache.IsAbsolutelyExpired(entry));
 
         TimeProvider.Advance(TimeSpan.FromSeconds(31));
 
-        Assert.True(Cache.IsExpired(entry));
+        Assert.True(Cache.IsAbsolutelyExpired(entry));
+    }
+
+    [Fact]
+    public void AbsoluteExpirationIsExpiredAtExactInstant()
+    {
+        var entry = Cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(30)));
+
+        // Advance to exactly the absolute expiration instant: the boundary is inclusive.
+        TimeProvider.Advance(TimeSpan.FromSeconds(30));
+
+        Assert.True(Cache.IsAbsolutelyExpired(entry));
     }
 
     [Fact]
@@ -32,7 +45,7 @@ public class TimeProviderExpirationUnitTests : TestBase
         TimeProvider.Advance(TimeSpan.FromHours(1));
 
         // Absolute expiration only applies to entries with an absolute expiration set.
-        Assert.False(Cache.IsExpired(entry));
+        Assert.False(Cache.IsAbsolutelyExpired(entry));
     }
 
     [Fact]
