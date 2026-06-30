@@ -143,14 +143,14 @@ public class CacheServiceExtensionsUnitTests
         services.AddNatsDistributedCache(options => options.BucketName = "cache");
 
         var cache = (NatsCache)services.BuildServiceProvider().GetRequiredService<IDistributedCache>();
+
+        // Act - the expiration is computed from the registered (frozen) provider's clock
         var entry = cache.CreateCacheEntry(
             new byte[1],
-            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(30)));
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(5)));
 
-        // Act / Assert - advancing the registered provider expires the entry, proving it is wired in
-        Assert.False(cache.IsExpired(entry));
-        timeProvider.Advance(TimeSpan.FromSeconds(31));
-        Assert.True(cache.IsExpired(entry));
+        // Assert - matches the registered fake clock, not the real system clock, proving it is wired in
+        Assert.Equal(timeProvider.GetUtcNow().AddMinutes(5), entry.AbsoluteExpiration);
     }
 
     [Fact]

@@ -190,12 +190,7 @@ public partial class NatsCache : IBufferDistributedCache
                 "The sliding expiration value must be positive.");
         }
 
-        var absoluteExpiration = options.AbsoluteExpiration;
-        if (options.AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            absoluteExpiration = _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value);
-        }
-
+        var absoluteExpiration = ResolveAbsoluteExpiration(options);
         if (!absoluteExpiration.HasValue)
         {
             return options.SlidingExpiration;
@@ -214,26 +209,23 @@ public partial class NatsCache : IBufferDistributedCache
             : ttl;
     }
 
-    internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
-    {
-        var absoluteExpiration = options.AbsoluteExpiration;
-        if (options.AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            absoluteExpiration = _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value);
-        }
-
-        var cacheEntry = new CacheEntry
+    internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options) =>
+        new CacheEntry
         {
             Data = value,
-            AbsoluteExpiration = absoluteExpiration,
+            AbsoluteExpiration = ResolveAbsoluteExpiration(options),
             SlidingExpirationTicks = options.SlidingExpiration?.Ticks
         };
 
-        return cacheEntry;
-    }
-
     internal bool IsExpired(CacheEntry entry) =>
         entry.AbsoluteExpiration.HasValue && _timeProvider.GetUtcNow() > entry.AbsoluteExpiration.Value;
+
+    // Resolves the effective absolute expiration instant: a relative expiration (offset from the
+    // current clock) takes precedence over an explicit absolute expiration when both are set.
+    private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
+        options.AbsoluteExpirationRelativeToNow.HasValue
+            ? _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value)
+            : options.AbsoluteExpiration;
 
     private string GetEncodedKey(string key) =>
         string.IsNullOrEmpty(_keyPrefix)
