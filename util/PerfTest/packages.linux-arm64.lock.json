@@ -80,10 +80,10 @@
           "StyleCop.Analyzers.Unstable": "1.2.0.556"
         }
       },
-      "Aspire.Dashboard.Sdk.osx-arm64": {
+      "Aspire.Dashboard.Sdk.linux-arm64": {
         "type": "Transitive",
         "resolved": "13.4.6",
-        "contentHash": "ImzN7Egx/jWH0FfzIwjuZ1V4WpRsjMI6aO0VJE63fYV+PO32B0kpAbHxAcwQ4c742or4VnXOllmQPtVR1IY/gw=="
+        "contentHash": "v6teMz4pcrU9EbRqzAUDeonUHGosrmQZt9UErd4pjyPligyxSmL6hYTzYabVfX/iB7cW0kUxWThs6ZfHAK/Uew=="
       },
       "Aspire.Hosting": {
         "type": "Transitive",
@@ -155,10 +155,10 @@
           "System.IO.Hashing": "10.0.8"
         }
       },
-      "Aspire.Hosting.Orchestration.osx-arm64": {
+      "Aspire.Hosting.Orchestration.linux-arm64": {
         "type": "Transitive",
         "resolved": "13.4.6",
-        "contentHash": "8im4H5IZVIjLIR4uNAEzx8HDwsD/Brq8UsjZNfCs4jVbwwq+B7iA1EvieFy3OjhNP6CQXCHosvCJ0DjVOMofYg=="
+        "contentHash": "Wjv03j4BCzS8jf0Rw3uACZd0jlfcMVostqiC+xR4jfCfPqZNLNwI8mD1KlcXL9Qrb53TWuo/jdC9APrcoZ6MYg=="
       },
       "Aspire.Hosting.Redis": {
         "type": "Transitive",
@@ -1094,18 +1094,18 @@
       "natsapphost": {
         "type": "Project",
         "dependencies": {
-          "Aspire.Dashboard.Sdk.osx-arm64": "[13.4.6, )",
+          "Aspire.Dashboard.Sdk.linux-arm64": "[13.4.6, )",
           "Aspire.Hosting.AppHost": "[13.4.6, )",
-          "Aspire.Hosting.Orchestration.osx-arm64": "[13.4.6, )",
+          "Aspire.Hosting.Orchestration.linux-arm64": "[13.4.6, )",
           "CodeCargo.Nats.HybridCacheExtensions": "[1.0.0, )"
         }
       },
       "redisapphost": {
         "type": "Project",
         "dependencies": {
-          "Aspire.Dashboard.Sdk.osx-arm64": "[13.4.6, )",
+          "Aspire.Dashboard.Sdk.linux-arm64": "[13.4.6, )",
           "Aspire.Hosting.AppHost": "[13.4.6, )",
-          "Aspire.Hosting.Orchestration.osx-arm64": "[13.4.6, )",
+          "Aspire.Hosting.Orchestration.linux-arm64": "[13.4.6, )",
           "Aspire.Hosting.Redis": "[13.4.6, )",
           "CodeCargo.Nats.HybridCacheExtensions": "[1.0.0, )"
         }

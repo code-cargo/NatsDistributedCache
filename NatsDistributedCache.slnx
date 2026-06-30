@@ -1,0 +1,22 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/NatsDistributedCache/NatsDistributedCache.csproj" />
+    <Project Path="src/NatsHybridCacheExtensions/NatsHybridCacheExtensions.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/IntegrationTests/IntegrationTests.csproj" />
+    <Project Path="test/TestUtils/TestUtils.csproj" />
+    <Project Path="test/UnitTests/UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/util/">
+    <Project Path="util/NatsAppHost/NatsAppHost.csproj" />
+    <Project Path="util/PerfTest/PerfTest.csproj" />
+    <Project Path="util/ReadmeExample/ReadmeExample.csproj" />
+    <Project Path="util/RedisAppHost/RedisAppHost.csproj" />
+  </Folder>
+</Solution>

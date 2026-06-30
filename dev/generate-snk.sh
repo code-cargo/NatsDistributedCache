@@ -1,19 +1,19 @@
 #!/bin/bash
 set -e
 
-# Navigate to the root directory containing the .sln file
+# Navigate to the root directory containing the .slnx file
 cd "$(dirname "$0")/.."
 
-# Find the .sln file in the current directory
+# Find the .slnx file in the current directory
 CUR_DIR="$(pwd)"
-SLN_FILE=$(ls "$CUR_DIR"/*.sln 2>/dev/null | head -n 1)
+SLN_FILE=$(ls "$CUR_DIR"/*.slnx 2>/dev/null | head -n 1)
 if [ -z "$SLN_FILE" ]; then
-    echo "Error: No .sln file found."
+    echo "Error: No .slnx file found."
     exit 1
 fi
 
 # Extract the solution name without the extension
-SLN_NAME=$(basename "$SLN_FILE" .sln)
+SLN_NAME=$(basename "$SLN_FILE" .slnx)
 
 # Get the current date
 DATE="$(date "+%Y-%m-%d")"

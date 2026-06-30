@@ -3,12 +3,14 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
+    <!-- References the Aspire 13 AppHost (net10.0-only), so this project is net10.0-only too -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <RootNamespace>CodeCargo.Nats.DistributedCache.ReadmeExample</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.Testing" Version="13.1.0" />
-    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="2.7.0" />
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.4.6" />
+    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="2.8.2" />
   </ItemGroup>
 
   <ItemGroup>
