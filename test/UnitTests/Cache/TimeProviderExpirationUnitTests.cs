@@ -60,8 +60,9 @@ public class TimeProviderExpirationUnitTests : TestBase
     }
 
     [Fact]
-    public void GetTtlComputesRelativeExpirationFromProviderTime()
+    public void GetTtlReturnsConfiguredRelativeExpiration()
     {
+        // A relative expiration yields a TTL equal to the configured duration, independent of the clock.
         var ttl = Cache.GetTtl(new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(TimeSpan.FromMinutes(5), ttl);
