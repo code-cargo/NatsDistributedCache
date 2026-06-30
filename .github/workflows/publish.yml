@@ -22,8 +22,8 @@ jobs:
       id-token: write
     steps:
     - name: CargoWall
-      uses: code-cargo/cargowall-action@fc9644606d84536b4e59a30ad2802904f7b4ff22 # v1.2.0
-    - uses: actions/checkout@v6
+      uses: code-cargo/cargowall-action@41060a3cd1b22ea4922be4a8769c149983ef4eae # v1.3.0
+    - uses: actions/checkout@v7
 
     - name: Setup dotnet
       uses: actions/setup-dotnet@v5

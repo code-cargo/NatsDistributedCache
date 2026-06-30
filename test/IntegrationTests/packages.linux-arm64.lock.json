@@ -43,32 +43,14 @@
           "System.IO.Hashing": "10.0.8"
         }
       },
-      "Microsoft.Extensions.Caching.StackExchangeRedis": {
+      "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
-        "requested": "[10.0.9, )",
-        "resolved": "10.0.9",
-        "contentHash": "PkscI6VZkG+dVvKSPoR8eq/l3zl1ONPio4286+rvB/hVh2a50Du7w9jqbTWknggKobb+WnODdd4RZzSVY4Ir5g==",
+        "requested": "[18.7.0, )",
+        "resolved": "18.7.0",
+        "contentHash": "49xH9j4UzCh2hMohJp53g3wUTvyycECw7CtVht4gfCz5ykudB1uBcF6D0TtgJPjCtP76UPW53bQElKdCeX+dUg==",
         "dependencies": {
-          "Microsoft.Extensions.Caching.Abstractions": "10.0.9",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.9",
-          "Microsoft.Extensions.Options": "10.0.9",
-          "StackExchange.Redis": "2.7.27"
-        }
-      },
-      "NATS.Net": {
-        "type": "Direct",
-        "requested": "[2.8.2, )",
-        "resolved": "2.8.2",
-        "contentHash": "aDeKcnk4y3ZYSHnudVlWmo/59IgLBO7YRt23W9cYDVQbxonCOaRZWQ7q5XcDuOooBG7JipFjKcZC9y9YANwIww==",
-        "dependencies": {
-          "NATS.Client.Core": "2.8.2",
-          "NATS.Client.Hosting": "2.8.2",
-          "NATS.Client.JetStream": "2.8.2",
-          "NATS.Client.KeyValueStore": "2.8.2",
-          "NATS.Client.ObjectStore": "2.8.2",
-          "NATS.Client.Serializers.Json": "2.8.2",
-          "NATS.Client.Services": "2.8.2",
-          "NATS.Client.Simplified": "2.8.2"
+          "Microsoft.CodeCoverage": "18.7.0",
+          "Microsoft.TestPlatform.TestHost": "18.7.0"
         }
       },
       "StyleCop.Analyzers": {
@@ -80,10 +62,25 @@
           "StyleCop.Analyzers.Unstable": "1.2.0.556"
         }
       },
-      "Aspire.Dashboard.Sdk.osx-arm64": {
+      "xunit.runner.visualstudio": {
+        "type": "Direct",
+        "requested": "[3.1.5, )",
+        "resolved": "3.1.5",
+        "contentHash": "tKi7dSTwP4m5m9eXPM2Ime4Kn7xNf4x4zT9sdLO/G4hZVnQCRiMTWoSZqI/pYTVeI27oPPqHBKYI/DjJ9GsYgA=="
+      },
+      "xunit.v3": {
+        "type": "Direct",
+        "requested": "[3.2.2, )",
+        "resolved": "3.2.2",
+        "contentHash": "L+4/4y0Uqcg8/d6hfnxhnwh4j9FaeULvefTwrk30rr1o4n/vdPfyUQ8k0yzH8VJx7bmFEkDdcRfbtbjEHlaYcA==",
+        "dependencies": {
+          "xunit.v3.mtp-v1": "[3.2.2]"
+        }
+      },
+      "Aspire.Dashboard.Sdk.linux-arm64": {
         "type": "Transitive",
         "resolved": "13.4.6",
-        "contentHash": "ImzN7Egx/jWH0FfzIwjuZ1V4WpRsjMI6aO0VJE63fYV+PO32B0kpAbHxAcwQ4c742or4VnXOllmQPtVR1IY/gw=="
+        "contentHash": "v6teMz4pcrU9EbRqzAUDeonUHGosrmQZt9UErd4pjyPligyxSmL6hYTzYabVfX/iB7cW0kUxWThs6ZfHAK/Uew=="
       },
       "Aspire.Hosting": {
         "type": "Transitive",
@@ -155,57 +152,10 @@
           "System.IO.Hashing": "10.0.8"
         }
       },
-      "Aspire.Hosting.Orchestration.osx-arm64": {
+      "Aspire.Hosting.Orchestration.linux-arm64": {
         "type": "Transitive",
         "resolved": "13.4.6",
-        "contentHash": "8im4H5IZVIjLIR4uNAEzx8HDwsD/Brq8UsjZNfCs4jVbwwq+B7iA1EvieFy3OjhNP6CQXCHosvCJ0DjVOMofYg=="
-      },
-      "Aspire.Hosting.Redis": {
-        "type": "Transitive",
-        "resolved": "13.4.6",
-        "contentHash": "UW4XTP72beiHhyth+2IHxilEN6HOnc+u88m9C9qoc35ysoTsZrxDDdTQjc6mteS8yENitQrE8VJlg2bLoU2AoQ==",
-        "dependencies": {
-          "AspNetCore.HealthChecks.Redis": "9.0.0",
-          "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.4.6",
-          "Google.Protobuf": "3.34.1",
-          "Grpc.AspNetCore": "2.80.0",
-          "Grpc.Net.ClientFactory": "2.80.0",
-          "Grpc.Tools": "2.80.0",
-          "Humanizer.Core": "3.0.10",
-          "JsonPatch.Net": "3.3.0",
-          "KubernetesClient": "19.0.2",
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.8",
-          "Microsoft.Extensions.Configuration.Binder": "10.0.8",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.8",
-          "Microsoft.Extensions.Diagnostics.HealthChecks": "8.0.27",
-          "Microsoft.Extensions.FileSystemGlobbing": "10.0.8",
-          "Microsoft.Extensions.Hosting": "10.0.8",
-          "Microsoft.Extensions.Hosting.Abstractions": "10.0.8",
-          "Microsoft.Extensions.Http": "10.0.8",
-          "Microsoft.Extensions.Logging": "10.0.8",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.8",
-          "Microsoft.Extensions.Options": "10.0.8",
-          "Microsoft.Extensions.Primitives": "10.0.8",
-          "ModelContextProtocol": "1.3.0",
-          "Newtonsoft.Json": "13.0.4",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.15.3",
-          "OpenTelemetry.Extensions.Hosting": "1.15.3",
-          "Polly.Core": "8.6.6",
-          "Semver": "3.0.0",
-          "StackExchange.Redis": "2.13.1",
-          "StreamJsonRpc": "2.25.29",
-          "System.IO.Hashing": "10.0.8"
-        }
-      },
-      "AspNetCore.HealthChecks.Redis": {
-        "type": "Transitive",
-        "resolved": "9.0.0",
-        "contentHash": "yNH0h8GLRbAf+PU5HNVLZ5hNeyq9mDVmRKO9xuZsme/znUYoBJlQvI0gq45gaZNlLncCHkMhR4o90MuT+gxxPw==",
-        "dependencies": {
-          "Microsoft.Extensions.Diagnostics.HealthChecks": "8.0.11",
-          "StackExchange.Redis": "2.7.4"
-        }
+        "contentHash": "Wjv03j4BCzS8jf0Rw3uACZd0jlfcMVostqiC+xR4jfCfPqZNLNwI8mD1KlcXL9Qrb53TWuo/jdC9APrcoZ6MYg=="
       },
       "AspNetCore.HealthChecks.Uris": {
         "type": "Transitive",
@@ -339,10 +289,20 @@
         "resolved": "2.5.302",
         "contentHash": "PTHQHbMJzx1VtUUCpnvPavD7o5X9s2dAJ4uQHAP2kBCwJKICpPTZq0qxzbB4/6iJJiIxem8zlxyfldGAx1SjSQ=="
       },
+      "Microsoft.ApplicationInsights": {
+        "type": "Transitive",
+        "resolved": "2.23.0",
+        "contentHash": "nWArUZTdU7iqZLycLKWe0TDms48KKGE6pONH2terYNa8REXiqixrMOkf1sk5DHGMaUTqONU2YkS4SAXBhLStgw=="
+      },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
         "resolved": "6.0.0",
         "contentHash": "UcSjPsst+DfAdJGVDsu346FX0ci0ah+lw3WRtn18NUwEqRt70HaOQ7lI72vy3+1LxtqI3T5GWwV39rQSrCzAeg=="
+      },
+      "Microsoft.CodeCoverage": {
+        "type": "Transitive",
+        "resolved": "18.7.0",
+        "contentHash": "+wFfx9s7D9wegM0RziXMj2kvYDT4qcqXXtyjiQwSZOGQ2wwcOAJQcD6eQXk02jt0MvRNawtp8TJxTrV+wD8X1g=="
       },
       "Microsoft.Extensions.AI.Abstractions": {
         "type": "Transitive",
@@ -788,6 +748,50 @@
         "resolved": "18.4.0",
         "contentHash": "iQWOKi3L5QStmWqDjDubcr1KlTDy88qBTe88I0etlUUo1l0zSNebGJXl1Xetyl+ACA+ujP3YUtxo3Nz54JPriw=="
       },
+      "Microsoft.Testing.Extensions.Telemetry": {
+        "type": "Transitive",
+        "resolved": "1.9.1",
+        "contentHash": "No5AudZMmSb+uNXjlgL2y3/stHD2IT4uxqc5yHwkE+/nNux9jbKcaJMvcp9SwgP4DVD8L9/P3OUz8mmmcvEIdQ==",
+        "dependencies": {
+          "Microsoft.ApplicationInsights": "2.23.0",
+          "Microsoft.Testing.Platform": "1.9.1"
+        }
+      },
+      "Microsoft.Testing.Extensions.TrxReport.Abstractions": {
+        "type": "Transitive",
+        "resolved": "1.9.1",
+        "contentHash": "AL46Xe1WBi85Ntd4mNPvat5ZSsZ2uejiVqoKCypr8J3wK0elA5xJ3AN4G/Q4GIwzUFnggZoH/DBjnr9J18IO/g==",
+        "dependencies": {
+          "Microsoft.Testing.Platform": "1.9.1"
+        }
+      },
+      "Microsoft.Testing.Platform": {
+        "type": "Transitive",
+        "resolved": "1.9.1",
+        "contentHash": "QafNtNSmEI0zazdebnsIkDKmFtTSpmx/5PLOjURWwozcPb3tvRxzosQSL8xwYNM1iPhhKiBksXZyRSE2COisrA=="
+      },
+      "Microsoft.Testing.Platform.MSBuild": {
+        "type": "Transitive",
+        "resolved": "1.9.1",
+        "contentHash": "oTUtyR4X/s9ytuiNA29FGsNCCH0rNmY5Wdm14NCKLjTM1cT9edVSlA+rGS/mVmusPqcP0l/x9qOnMXg16v87RQ==",
+        "dependencies": {
+          "Microsoft.Testing.Platform": "1.9.1"
+        }
+      },
+      "Microsoft.TestPlatform.ObjectModel": {
+        "type": "Transitive",
+        "resolved": "18.7.0",
+        "contentHash": "6rmgU4q3/WOpOPcncI0YW0Q/QpcQtwR2TTEXDR5+4TfSimPBAk6Z/BgKLeGgp1SOun0ROVUCCafXhRLwsHaPpA=="
+      },
+      "Microsoft.TestPlatform.TestHost": {
+        "type": "Transitive",
+        "resolved": "18.7.0",
+        "contentHash": "kYwfmebCs8992zaxEDkvG7S+YEouTeKfYVKUFEkwh1W2dIoOaevBt80XSKVXCUFEhusjOIm1sFfHBnoJgygrRA==",
+        "dependencies": {
+          "Microsoft.TestPlatform.ObjectModel": "18.7.0",
+          "Newtonsoft.Json": "13.0.3"
+        }
+      },
       "Microsoft.VisualStudio.Threading.Only": {
         "type": "Transitive",
         "resolved": "17.14.15",
@@ -800,6 +804,11 @@
         "type": "Transitive",
         "resolved": "17.13.22",
         "contentHash": "fC20ITOxlUpGQ0ltAxITQbeFxwuB6OjLT3lByC4+/Gm46o/Mwv9hlIVrBhiUhnqdQzUUvr4EHkdiYe7WOSMLmw=="
+      },
+      "Microsoft.Win32.Registry": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg=="
       },
       "ModelContextProtocol": {
         "type": "Transitive",
@@ -894,6 +903,21 @@
           "NATS.Client.Serializers.Json": "2.8.2"
         }
       },
+      "NATS.Net": {
+        "type": "Transitive",
+        "resolved": "2.8.2",
+        "contentHash": "aDeKcnk4y3ZYSHnudVlWmo/59IgLBO7YRt23W9cYDVQbxonCOaRZWQ7q5XcDuOooBG7JipFjKcZC9y9YANwIww==",
+        "dependencies": {
+          "NATS.Client.Core": "2.8.2",
+          "NATS.Client.Hosting": "2.8.2",
+          "NATS.Client.JetStream": "2.8.2",
+          "NATS.Client.KeyValueStore": "2.8.2",
+          "NATS.Client.ObjectStore": "2.8.2",
+          "NATS.Client.Serializers.Json": "2.8.2",
+          "NATS.Client.Services": "2.8.2",
+          "NATS.Client.Simplified": "2.8.2"
+        }
+      },
       "NATS.NKeys": {
         "type": "Transitive",
         "resolved": "1.0.1",
@@ -964,11 +988,6 @@
           "OpenTelemetry": "1.15.3"
         }
       },
-      "Pipelines.Sockets.Unofficial": {
-        "type": "Transitive",
-        "resolved": "2.2.16",
-        "contentHash": "nonu9l0YrZH6krVYbskBjE7uG0VMAnvOQ9PU+RmzUsy+++vHkqzzCkHRoP877OiA3iRTxJyNDLfpcU8hrJ3/YQ=="
-      },
       "Polly.Core": {
         "type": "Transitive",
         "resolved": "8.6.6",
@@ -1006,16 +1025,6 @@
           "Microsoft.Extensions.Primitives": "5.0.1"
         }
       },
-      "StackExchange.Redis": {
-        "type": "Transitive",
-        "resolved": "2.13.1",
-        "contentHash": "jC5wkRe8K6HPoDENUws+fl2d7+GKz+ky8SWEDzYzPx6hHt2EwxWm01gmYPWLzlT49jfYYap0guB5bExtyX9aIQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
-          "Pipelines.Sockets.Unofficial": "2.2.16",
-          "System.IO.Hashing": "10.0.2"
-        }
-      },
       "StreamJsonRpc": {
         "type": "Transitive",
         "resolved": "2.25.29",
@@ -1049,6 +1058,11 @@
         "resolved": "8.0.0",
         "contentHash": "7mu9v0QDv66ar3DpGSZHg9NuNcxDaaAcnMULuZlaTpP9+hwXhrxNGsF5GmLkSHxFdb5bBc1TzeujsRgTrPWi+Q=="
       },
+      "xunit.analyzers": {
+        "type": "Transitive",
+        "resolved": "1.27.0",
+        "contentHash": "y/pxIQaLvk/kxAoDkZW9GnHLCEqzwl5TW0vtX3pweyQpjizB9y3DXhb9pkw2dGeUqhLjsxvvJM1k89JowU6z3g=="
+      },
       "xunit.v3.assert": {
         "type": "Transitive",
         "resolved": "3.2.2",
@@ -1062,12 +1076,53 @@
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0"
         }
       },
+      "xunit.v3.core.mtp-v1": {
+        "type": "Transitive",
+        "resolved": "3.2.2",
+        "contentHash": "Ga5aA2Ca9ktz+5k3g5ukzwfexwoqwDUpV6z7atSEUvqtd6JuybU1XopHqg1oFd78QdTfZgZE9h5sHpO4qYIi5w==",
+        "dependencies": {
+          "Microsoft.Testing.Extensions.Telemetry": "1.9.1",
+          "Microsoft.Testing.Extensions.TrxReport.Abstractions": "1.9.1",
+          "Microsoft.Testing.Platform": "1.9.1",
+          "Microsoft.Testing.Platform.MSBuild": "1.9.1",
+          "xunit.v3.extensibility.core": "[3.2.2]",
+          "xunit.v3.runner.inproc.console": "[3.2.2]"
+        }
+      },
       "xunit.v3.extensibility.core": {
         "type": "Transitive",
         "resolved": "3.2.2",
         "contentHash": "srY8z/oMPvh/t8axtO2DwrHajhFMH7tnqKildvYrVQIfICi8fOn3yIBWkVPAcrKmHMwvXRJ/XsQM3VMR6DOYfQ==",
         "dependencies": {
           "xunit.v3.common": "[3.2.2]"
+        }
+      },
+      "xunit.v3.mtp-v1": {
+        "type": "Transitive",
+        "resolved": "3.2.2",
+        "contentHash": "O41aAzYKBT5PWqATa1oEWVNCyEUypFQ4va6K0kz37dduV3EKzXNMaV2UnEhufzU4Cce1I33gg0oldS8tGL5I0A==",
+        "dependencies": {
+          "xunit.analyzers": "1.27.0",
+          "xunit.v3.assert": "[3.2.2]",
+          "xunit.v3.core.mtp-v1": "[3.2.2]"
+        }
+      },
+      "xunit.v3.runner.common": {
+        "type": "Transitive",
+        "resolved": "3.2.2",
+        "contentHash": "/hkHkQCzGrugelOAehprm7RIWdsUFVmIVaD6jDH/8DNGCymTlKKPTbGokD5czbAfqfex47mBP0sb0zbHYwrO/g==",
+        "dependencies": {
+          "Microsoft.Win32.Registry": "[5.0.0]",
+          "xunit.v3.common": "[3.2.2]"
+        }
+      },
+      "xunit.v3.runner.inproc.console": {
+        "type": "Transitive",
+        "resolved": "3.2.2",
+        "contentHash": "ulWOdSvCk+bPXijJZ73bth9NyoOHsAs1ZOvamYbCkD4DNLX/Bd29Ve2ZNUwBbK0MqfIYWXHZViy/HKrdEC/izw==",
+        "dependencies": {
+          "xunit.v3.extensibility.core": "[3.2.2]",
+          "xunit.v3.runner.common": "[3.2.2]"
         }
       },
       "YamlDotNet": {
@@ -1094,19 +1149,9 @@
       "natsapphost": {
         "type": "Project",
         "dependencies": {
-          "Aspire.Dashboard.Sdk.osx-arm64": "[13.4.6, )",
+          "Aspire.Dashboard.Sdk.linux-arm64": "[13.4.6, )",
           "Aspire.Hosting.AppHost": "[13.4.6, )",
-          "Aspire.Hosting.Orchestration.osx-arm64": "[13.4.6, )",
-          "CodeCargo.Nats.HybridCacheExtensions": "[1.0.0, )"
-        }
-      },
-      "redisapphost": {
-        "type": "Project",
-        "dependencies": {
-          "Aspire.Dashboard.Sdk.osx-arm64": "[13.4.6, )",
-          "Aspire.Hosting.AppHost": "[13.4.6, )",
-          "Aspire.Hosting.Orchestration.osx-arm64": "[13.4.6, )",
-          "Aspire.Hosting.Redis": "[13.4.6, )",
+          "Aspire.Hosting.Orchestration.linux-arm64": "[13.4.6, )",
           "CodeCargo.Nats.HybridCacheExtensions": "[1.0.0, )"
         }
       },

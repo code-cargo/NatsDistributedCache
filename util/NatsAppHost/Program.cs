@@ -5,10 +5,10 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 // Find the solution directory
 var slnDir = Assembly.GetExecutingAssembly().Location;
-while (!File.Exists(Path.Combine(slnDir, "NatsDistributedCache.sln")))
+while (!File.Exists(Path.Combine(slnDir, "NatsDistributedCache.slnx")))
 {
     slnDir = Path.GetDirectoryName(slnDir) ??
-             throw new ArgumentException("Could not find NatsDistributedCache.sln in any parent directory");
+             throw new ArgumentException("Could not find NatsDistributedCache.slnx in any parent directory");
 }
 
 // Get path to NATS config directory

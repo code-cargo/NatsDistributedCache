@@ -5,13 +5,15 @@
     <IsTestProject>true</IsTestProject>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\..\xunit.runsettings</RunSettingsFilePath>
     <OutputType>Exe</OutputType>
+    <!-- References the Aspire 13 AppHost (net10.0-only), so this project is net10.0-only too -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <RootNamespace>CodeCargo.Nats.DistributedCache.IntegrationTests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.Testing" Version="13.1.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
-    <PackageReference Include="xunit.v3" Version="3.2.1" />
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.4.6" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

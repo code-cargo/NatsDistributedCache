@@ -31,9 +31,9 @@ jobs:
 
     steps:
     - name: CargoWall
-      uses: code-cargo/cargowall-action@fc9644606d84536b4e59a30ad2802904f7b4ff22 # v1.2.0
+      uses: code-cargo/cargowall-action@41060a3cd1b22ea4922be4a8769c149983ef4eae # v1.3.0
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Setup dotnet
       uses: actions/setup-dotnet@v5
@@ -43,6 +43,17 @@ jobs:
         dotnet-version: |
           8.x
           10.x
+
+    - name: Verify NuGet lock files are in sync
+      run: |
+        ./dev/update-nuget-lockfiles.sh
+        changes="$(git status --porcelain -- '*.lock.json')"
+        if [ -n "$changes" ]; then
+          echo "::error::NuGet lock files are out of date. Run ./dev/update-nuget-lockfiles.sh and commit the result."
+          echo "$changes"
+          git diff -- '*.lock.json'
+          exit 1
+        fi
 
     - name: Build
       run: dotnet build -p TreatWarningsAsErrors=true

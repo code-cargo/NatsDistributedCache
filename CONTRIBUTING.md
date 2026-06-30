@@ -2,7 +2,7 @@
 
 ## Dependencies
 
-- .NET 8+ SDK
+- .NET 10 SDK - required to build the Aspire AppHosts; the libraries still target net8.0 and net10.0
 - Docker or Docker Desktop - The tests use Aspire to start a NATS Server Docker container
 
 ## Project Directories
@@ -64,6 +64,7 @@ Use the provided script to update all platform-specific lock files:
 
 This will generate lock files for:
 
+- Linux ARM64: `packages.linux-arm64.lock.json`
 - Linux x64: `packages.linux-x64.lock.json`
 - macOS ARM64: `packages.osx-arm64.lock.json`
 - Windows x64: `packages.win-x64.lock.json`
