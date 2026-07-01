@@ -68,6 +68,11 @@ public partial class NatsCache : IBufferDistributedCache
         _keyEncoder = keyEncoder ?? new NatsCacheKeyEncoder();
     }
 
+    // The clock used for all expiration calculations. Defaults to TimeProvider.System; the DI
+    // registration overrides it with a TimeProvider resolved from the container when one is present
+    // (for example, FakeTimeProvider in tests). Injected via init to keep the constructor unchanged.
+    internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+
     /// <inheritdoc />
     public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
         SetAsync(key, value, options).GetAwaiter().GetResult();
@@ -160,9 +165,9 @@ public partial class NatsCache : IBufferDistributedCache
         return false;
     }
 
-    private static TimeSpan? GetTtl(DistributedCacheEntryOptions options)
+    internal TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
-        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= DateTimeOffset.Now)
+        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= TimeProvider.GetUtcNow())
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
@@ -187,18 +192,13 @@ public partial class NatsCache : IBufferDistributedCache
                 "The sliding expiration value must be positive.");
         }
 
-        var absoluteExpiration = options.AbsoluteExpiration;
-        if (options.AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
-        }
-
+        var absoluteExpiration = ResolveAbsoluteExpiration(options);
         if (!absoluteExpiration.HasValue)
         {
             return options.SlidingExpiration;
         }
 
-        var ttl = absoluteExpiration.Value - DateTimeOffset.Now;
+        var ttl = absoluteExpiration.Value - TimeProvider.GetUtcNow();
         if (ttl.TotalMilliseconds <= 0)
         {
             // Value is in the past, remove it
@@ -211,23 +211,26 @@ public partial class NatsCache : IBufferDistributedCache
             : ttl;
     }
 
-    private static CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options)
-    {
-        var absoluteExpiration = options.AbsoluteExpiration;
-        if (options.AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            absoluteExpiration = DateTimeOffset.Now.Add(options.AbsoluteExpirationRelativeToNow.Value);
-        }
-
-        var cacheEntry = new CacheEntry
+    internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options) =>
+        new CacheEntry
         {
             Data = value,
-            AbsoluteExpiration = absoluteExpiration,
+            AbsoluteExpiration = ResolveAbsoluteExpiration(options),
             SlidingExpirationTicks = options.SlidingExpiration?.Ticks
         };
 
-        return cacheEntry;
-    }
+    // An entry is absolutely expired once the clock reaches its absolute expiration instant. The
+    // boundary is inclusive (>=) to match GetTtl, which treats an absolute expiration at "now" as
+    // already elapsed. Sliding expiration is enforced separately via the NATS entry TTL.
+    internal bool IsAbsolutelyExpired(CacheEntry entry) =>
+        entry.AbsoluteExpiration.HasValue && TimeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
+
+    // Resolves the effective absolute expiration instant: a relative expiration (offset from the
+    // current clock) takes precedence over an explicit absolute expiration when both are set.
+    private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
+        options.AbsoluteExpirationRelativeToNow.HasValue
+            ? TimeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value)
+            : options.AbsoluteExpiration;
 
     private string GetEncodedKey(string key) =>
         string.IsNullOrEmpty(_keyPrefix)
@@ -277,7 +280,7 @@ public partial class NatsCache : IBufferDistributedCache
             }
 
             // Check absolute expiration
-            if (kvEntry.Value.AbsoluteExpiration != null && DateTimeOffset.Now > kvEntry.Value.AbsoluteExpiration)
+            if (IsAbsolutelyExpired(kvEntry.Value))
             {
                 // NatsKVWrongLastRevisionException is caught below
                 var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
@@ -313,7 +316,7 @@ public partial class NatsCache : IBufferDistributedCache
             // If we also have an absolute expiration, make sure we don't exceed it
             if (kvEntry.Value.AbsoluteExpiration != null)
             {
-                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - DateTimeOffset.Now;
+                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
 
                 // Use the minimum of sliding window or remaining absolute time
                 if (remainingTime > TimeSpan.Zero && remainingTime < ttl)

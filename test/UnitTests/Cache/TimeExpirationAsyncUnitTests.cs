@@ -11,7 +11,7 @@ public class TimeExpirationAsyncUnitTests : TestBase
         var key = MethodKey();
         var value = new byte[1];
 
-        var expected = DateTimeOffset.Now - TimeSpan.FromMinutes(1);
+        var expected = TimeProvider.GetUtcNow() - TimeSpan.FromMinutes(1);
         await ExceptionAssert.ThrowsArgumentOutOfRangeAsync(
             async () =>
             {
