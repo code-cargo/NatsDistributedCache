@@ -45,7 +45,7 @@ public partial class NatsCache : IBufferDistributedCache
         var options = optionsAccessor.Value;
         _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
             ? options.BucketName
-            : throw new ArgumentException(NatsCacheOptions.BucketNameRequiredMessage, nameof(optionsAccessor));
+            : throw new ArgumentException(NatsCacheOptions.BucketNameRequiredMessage, nameof(NatsCacheOptions.BucketName));
         _keyPrefix = string.IsNullOrEmpty(options.CacheKeyPrefix)
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');

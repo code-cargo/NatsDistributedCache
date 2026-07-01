@@ -231,8 +231,9 @@ public class CacheServiceExtensionsUnitTests
         var exception = Assert.Throws<ArgumentException>(
             () => new NatsCache(options, _mockNatsConnection.Object));
 
-        // Assert
+        // Assert - message and paramName point at the offending config value, not the accessor
         Assert.Contains("BucketName must be set", exception.Message);
+        Assert.Equal(nameof(NatsCacheOptions.BucketName), exception.ParamName);
     }
 
     [Fact]
