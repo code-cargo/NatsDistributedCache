@@ -25,6 +25,9 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      # Bind the workflow input to an env var so it is never interpolated into the run script text
+      # (avoids shell injection); the run steps reference it as a normal, quoted shell variable.
+      FILTER: ${{ inputs.filter }}
 
     steps:
     - name: CargoWall
@@ -47,7 +50,7 @@ jobs:
       run: dotnet run -c Release --project util/Benchmarks -f net10.0 -- --sizes
 
     - name: Benchmarks (net10.0)
-      run: dotnet run -c Release --project util/Benchmarks -f net10.0 -- --filter '${{ inputs.filter }}'
+      run: dotnet run -c Release --project util/Benchmarks -f net10.0 -- --filter "${FILTER:-*}"
 
     - name: Benchmarks (net8.0)
-      run: dotnet run -c Release --project util/Benchmarks -f net8.0 -- --filter '${{ inputs.filter }}'
+      run: dotnet run -c Release --project util/Benchmarks -f net8.0 -- --filter "${FILTER:-*}"
