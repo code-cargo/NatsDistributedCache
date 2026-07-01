@@ -19,8 +19,10 @@ public abstract class TestBase
         TimeProvider = new FakeTimeProvider();
         Cache = new NatsCache(
             Options.Create(new NatsCacheOptions { BucketName = "cache" }),
-            mockNatsConnection.Object,
-            timeProvider: TimeProvider);
+            mockNatsConnection.Object)
+        {
+            TimeProvider = TimeProvider,
+        };
     }
 
     /// <summary>

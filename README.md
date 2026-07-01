@@ -121,6 +121,18 @@ await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarker
 await host.RunAsync();
 ```
 
+## Controlling Expiration Timing
+
+Expiration is computed from a [`TimeProvider`](https://learn.microsoft.com/dotnet/api/system.timeprovider),
+defaulting to `TimeProvider.System`. Register a `TimeProvider` in DI to override the clock the cache uses —
+for example, to drive expiration deterministically in tests with
+[`FakeTimeProvider`](https://learn.microsoft.com/dotnet/api/microsoft.extensions.time.testing.faketimeprovider):
+
+```csharp
+services.AddSingleton<TimeProvider>(new FakeTimeProvider());
+services.AddNatsDistributedCache(options => options.BucketName = "cache");
+```
+
 ## Additional Resources
 
 * [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0)

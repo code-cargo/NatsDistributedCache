@@ -37,12 +37,10 @@ public static class NatsDistributedCacheExtensions
             var keyEncoder = sp.GetService<INatsCacheKeyEncoder>();
             var timeProvider = sp.GetService<TimeProvider>();
 
-            return new NatsCache(
-                optionsAccessor,
-                natsConnection,
-                logger: logger,
-                keyEncoder: keyEncoder,
-                timeProvider: timeProvider);
+            return new NatsCache(optionsAccessor, natsConnection, logger: logger, keyEncoder: keyEncoder)
+            {
+                TimeProvider = timeProvider ?? TimeProvider.System,
+            };
         });
 
         return services;

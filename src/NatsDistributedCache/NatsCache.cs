@@ -47,15 +47,13 @@ public partial class NatsCache : IBufferDistributedCache
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
     private readonly INatsConnection _natsConnection;
-    private readonly TimeProvider _timeProvider;
     private Lazy<Task<INatsKVStore>> _lazyKvStore;
 
     public NatsCache(
         IOptions<NatsCacheOptions> optionsAccessor,
         INatsConnection natsConnection,
         ILogger<NatsCache>? logger = null,
-        INatsCacheKeyEncoder? keyEncoder = null,
-        TimeProvider? timeProvider = null)
+        INatsCacheKeyEncoder? keyEncoder = null)
     {
         var options = optionsAccessor.Value;
         _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
@@ -68,8 +66,12 @@ public partial class NatsCache : IBufferDistributedCache
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
         _keyEncoder = keyEncoder ?? new NatsCacheKeyEncoder();
-        _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    // The clock used for all expiration calculations. Defaults to TimeProvider.System; the DI
+    // registration overrides it with a TimeProvider resolved from the container when one is present
+    // (for example, FakeTimeProvider in tests). Injected via init to keep the constructor unchanged.
+    internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 
     /// <inheritdoc />
     public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
@@ -165,7 +167,7 @@ public partial class NatsCache : IBufferDistributedCache
 
     internal TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
-        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= _timeProvider.GetUtcNow())
+        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= TimeProvider.GetUtcNow())
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
@@ -196,7 +198,7 @@ public partial class NatsCache : IBufferDistributedCache
             return options.SlidingExpiration;
         }
 
-        var ttl = absoluteExpiration.Value - _timeProvider.GetUtcNow();
+        var ttl = absoluteExpiration.Value - TimeProvider.GetUtcNow();
         if (ttl.TotalMilliseconds <= 0)
         {
             // Value is in the past, remove it
@@ -221,13 +223,13 @@ public partial class NatsCache : IBufferDistributedCache
     // boundary is inclusive (>=) to match GetTtl, which treats an absolute expiration at "now" as
     // already elapsed. Sliding expiration is enforced separately via the NATS entry TTL.
     internal bool IsAbsolutelyExpired(CacheEntry entry) =>
-        entry.AbsoluteExpiration.HasValue && _timeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
+        entry.AbsoluteExpiration.HasValue && TimeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
 
     // Resolves the effective absolute expiration instant: a relative expiration (offset from the
     // current clock) takes precedence over an explicit absolute expiration when both are set.
     private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
         options.AbsoluteExpirationRelativeToNow.HasValue
-            ? _timeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value)
+            ? TimeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value)
             : options.AbsoluteExpiration;
 
     private string GetEncodedKey(string key) =>
@@ -314,7 +316,7 @@ public partial class NatsCache : IBufferDistributedCache
             // If we also have an absolute expiration, make sure we don't exceed it
             if (kvEntry.Value.AbsoluteExpiration != null)
             {
-                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - _timeProvider.GetUtcNow();
+                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
 
                 // Use the minimum of sliding window or remaining absolute time
                 if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
