@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,22 +14,11 @@ namespace CodeCargo.Nats.DistributedCache;
 /// </summary>
 public class CacheEntry
 {
-    [JsonPropertyName("absexp")]
     public DateTimeOffset? AbsoluteExpiration { get; set; }
 
-    [JsonPropertyName("sldexp")]
     public long? SlidingExpirationTicks { get; set; }
 
-    [JsonPropertyName("data")]
     public byte[]? Data { get; set; }
-}
-
-/// <summary>
-/// JsonSerializerContext for CacheEntry
-/// </summary>
-[JsonSerializable(typeof(CacheEntry))]
-public partial class CacheEntryJsonContext : JsonSerializerContext
-{
 }
 
 /// <summary>
@@ -38,9 +26,8 @@ public partial class CacheEntryJsonContext : JsonSerializerContext
 /// </summary>
 public partial class NatsCache : IBufferDistributedCache
 {
-    // Static JSON serializer for CacheEntry
-    private static readonly NatsJsonContextSerializer<CacheEntry> CacheEntrySerializer =
-        new(CacheEntryJsonContext.Default);
+    // Compact binary serializer for the CacheEntry envelope (replaces the previous JSON+base64 format).
+    private static readonly CacheEntryBinarySerializer CacheEntrySerializer = CacheEntryBinarySerializer.Default;
 
     private readonly string _bucketName;
     private readonly INatsCacheKeyEncoder _keyEncoder;
