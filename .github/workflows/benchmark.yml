@@ -1,0 +1,56 @@
+name: benchmark
+
+# Manual-only: BenchmarkDotNet runs are too slow and CPU-noisy to gate every PR on. Trigger this on a
+# branch to capture serialization numbers; results are printed in the job log.
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: "BenchmarkDotNet filter (e.g. '*Serialize*')"
+        required: false
+        default: "*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      # Bind the workflow input to an env var so it is never interpolated into the run script text
+      # (avoids shell injection); the run steps reference it as a normal, quoted shell variable.
+      FILTER: ${{ inputs.filter }}
+
+    steps:
+    - name: CargoWall
+      uses: code-cargo/cargowall-action@c0bd989036354f795a5150d478fce5bd510586af # v1.3.2-rc.3
+    - name: Checkout
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+      with:
+        cache: true
+        cache-dependency-path: '**/packages.linux-x64.lock.json'
+        dotnet-version: |
+          8.x
+          10.x
+
+    - name: Serialized size report
+      run: dotnet run -c Release --project util/Benchmarks -f net10.0 -- --sizes
+
+    - name: Benchmarks (net10.0)
+      run: dotnet run -c Release --project util/Benchmarks -f net10.0 -- --filter "${FILTER:-*}"
+
+    - name: Benchmarks (net8.0)
+      run: dotnet run -c Release --project util/Benchmarks -f net8.0 -- --filter "${FILTER:-*}"

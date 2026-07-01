@@ -2,6 +2,9 @@
 [Bb]in/
 [Oo]bj/
 
+# BenchmarkDotNet run output
+BenchmarkDotNet.Artifacts/
+
 # User settings
 *.DotSettings.user
 *.sln.DotSettings

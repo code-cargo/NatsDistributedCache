@@ -14,6 +14,7 @@
     <Project Path="test/UnitTests/UnitTests.csproj" />
   </Folder>
   <Folder Name="/util/">
+    <Project Path="util/Benchmarks/Benchmarks.csproj" />
     <Project Path="util/NatsAppHost/NatsAppHost.csproj" />
     <Project Path="util/PerfTest/PerfTest.csproj" />
     <Project Path="util/ReadmeExample/ReadmeExample.csproj" />

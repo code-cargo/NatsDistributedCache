@@ -7,7 +7,11 @@ namespace CodeCargo.Nats.DistributedCache.PerfTest;
 public class PerfTest
 {
     private const int NumKeys = 20_000;
-    private const int ValueSizeBytes = 128;
+    private const int DefaultValueSizeBytes = 128;
+
+    // Payload size in bytes; override with the PERF_VALUE_SIZE_BYTES env var to exercise larger values
+    // (where the base64 inflation of the old JSON envelope was most pronounced).
+    private static readonly int ValueSizeBytes = GetValueSizeBytes();
     private static readonly int ParallelTasks = Environment.ProcessorCount;
     private static readonly TimeSpan ProgressUpdateInterval = TimeSpan.FromMilliseconds(250);
 
@@ -49,6 +53,12 @@ public class PerfTest
         // Final display with results
         Console.Clear();
         PrintResults();
+    }
+
+    private static int GetValueSizeBytes()
+    {
+        var raw = Environment.GetEnvironmentVariable("PERF_VALUE_SIZE_BYTES");
+        return int.TryParse(raw, out var size) && size > 0 ? size : DefaultValueSizeBytes;
     }
 
     private async Task<TimeSpan> SetWithAbsoluteExpiry(string key, CancellationToken ct)
@@ -207,7 +217,7 @@ public class PerfTest
         // Print backend information
         if (!string.IsNullOrEmpty(_backendName))
         {
-            Console.WriteLine($"Backend: {_backendName}");
+            Console.WriteLine($"Backend: {_backendName}  (value size: {ValueSizeBytes} bytes)");
         }
 
         // Print header
