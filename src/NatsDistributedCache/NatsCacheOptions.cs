@@ -7,6 +7,10 @@ namespace CodeCargo.Nats.DistributedCache
     /// </summary>
     public class NatsCacheOptions : IOptions<NatsCacheOptions>
     {
+        // Shared by the startup options validator (AddNatsDistributedCache) and the NatsCache
+        // constructor guard so both validation paths report an identical message.
+        internal const string BucketNameRequiredMessage = "BucketName must be set";
+
         /// <summary>
         /// The NATS bucket name to use for the distributed cache.
         /// </summary>

@@ -45,7 +45,7 @@ public partial class NatsCache : IBufferDistributedCache
         var options = optionsAccessor.Value;
         _bucketName = !string.IsNullOrWhiteSpace(options.BucketName)
             ? options.BucketName
-            : throw new NullReferenceException("BucketName must be set");
+            : throw new ArgumentException(NatsCacheOptions.BucketNameRequiredMessage, nameof(optionsAccessor));
         _keyPrefix = string.IsNullOrEmpty(options.CacheKeyPrefix)
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');
@@ -328,9 +328,9 @@ public partial class NatsCache : IBufferDistributedCache
     }
 
     private async Task RemoveAsync(
-            string key,
-            NatsKVDeleteOpts? natsKvDeleteOpts = null,
-            CancellationToken token = default)
+        string key,
+        NatsKVDeleteOpts? natsKvDeleteOpts = null,
+        CancellationToken token = default)
     {
         var kvStore = await GetKvStore().ConfigureAwait(false);
         await kvStore.DeleteAsync(GetEncodedKey(key), natsKvDeleteOpts, cancellationToken: token)

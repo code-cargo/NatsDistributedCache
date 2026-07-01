@@ -25,8 +25,10 @@ public static class NatsDistributedCacheExtensions
         Action<NatsCacheOptions> configureOptions,
         object? connectionServiceKey = null)
     {
-        services.AddOptions();
-        services.Configure(configureOptions);
+        services.AddOptions<NatsCacheOptions>()
+            .Configure(configureOptions)
+            .Validate(o => !string.IsNullOrWhiteSpace(o.BucketName), NatsCacheOptions.BucketNameRequiredMessage)
+            .ValidateOnStart();
         services.AddSingleton<IDistributedCache>(sp =>
         {
             var optionsAccessor = sp.GetRequiredService<IOptions<NatsCacheOptions>>();

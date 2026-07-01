@@ -186,6 +186,55 @@ public class CacheServiceExtensionsUnitTests
         Assert.Same(services, result);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void AddNatsCache_MissingBucketName_FailsValidationOnStart(string? bucketName)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        services.AddNatsDistributedCache(options => options.BucketName = bucketName);
+        var validator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
+
+        // Act - ValidateOnStart runs this at host startup; invoke it directly to prove it fails fast
+        var exception = Assert.Throws<OptionsValidationException>(() => validator.Validate());
+
+        // Assert - descriptive failure, not a NullReferenceException
+        Assert.Contains("BucketName must be set", exception.Message);
+    }
+
+    [Fact]
+    public void AddNatsCache_ValidBucketName_PassesValidationOnStart()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+        var validator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
+
+        // Act + Assert - a valid bucket name passes startup validation without throwing
+        validator.Validate();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void NatsCache_DirectConstruction_MissingBucketName_ThrowsArgumentException(string? bucketName)
+    {
+        // Arrange - direct construction bypasses the DI options validation pipeline
+        var options = Options.Create(new NatsCacheOptions { BucketName = bucketName });
+
+        // Act - the constructor guard fails fast with a clear ArgumentException, not a NullReferenceException
+        var exception = Assert.Throws<ArgumentException>(
+            () => new NatsCache(options, _mockNatsConnection.Object));
+
+        // Assert
+        Assert.Contains("BucketName must be set", exception.Message);
+    }
+
     [Fact]
     public void ToHybridCacheSerializerFactory_CreatesWorkingFactory()
     {
