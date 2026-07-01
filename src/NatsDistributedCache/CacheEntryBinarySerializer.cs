@@ -28,6 +28,7 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
 
     private const byte HasAbsoluteExpiration = 0b0000_0001;
     private const byte HasSlidingExpiration = 0b0000_0010;
+    private const byte KnownFlags = HasAbsoluteExpiration | HasSlidingExpiration;
 
     /// <summary>
     /// Gets the shared, stateless serializer instance.
@@ -88,16 +89,21 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
             return null;
         }
 
-        if (!reader.TryRead(out var flags))
+        if (!reader.TryRead(out var flags) || (flags & ~KnownFlags) != 0)
         {
+            // Unknown flag bits: corrupt data, or a future format that mistakenly reused this version.
+            // Fail closed rather than misinterpreting the remaining bytes.
             return null;
         }
 
         DateTimeOffset? absoluteExpiration = null;
         if ((flags & HasAbsoluteExpiration) != 0)
         {
-            if (!reader.TryReadLittleEndian(out long absoluteTicks))
+            if (!reader.TryReadLittleEndian(out long absoluteTicks) ||
+                absoluteTicks < DateTimeOffset.MinValue.Ticks ||
+                absoluteTicks > DateTimeOffset.MaxValue.Ticks)
             {
+                // Missing or out-of-range ticks (corrupt entry): treat as a miss instead of throwing.
                 return null;
             }
 

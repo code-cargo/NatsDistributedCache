@@ -138,6 +138,28 @@ public class CacheEntryBinarySerializerTests
     }
 
     [Fact]
+    public void Deserialize_UnknownFlagBits_ReturnsNull()
+    {
+        // A v1 entry with an undefined flag bit set (0b100) must fail closed rather than treat the
+        // remaining bytes as payload.
+        byte[] bytes = [CacheEntryBinarySerializer.FormatVersion, 0b0000_0100, 1, 2, 3];
+
+        Assert.Null(Deserialize(bytes));
+    }
+
+    [Fact]
+    public void Deserialize_OutOfRangeAbsoluteTicks_ReturnsNull()
+    {
+        // flags = HasAbsoluteExpiration, followed by a tick value beyond DateTimeOffset's range.
+        var bytes = new byte[2 + 8];
+        bytes[0] = CacheEntryBinarySerializer.FormatVersion;
+        bytes[1] = 0b0000_0001;
+        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(2), long.MaxValue);
+
+        Assert.Null(Deserialize(bytes));
+    }
+
+    [Fact]
     public void Deserialize_MultiSegmentSequence_RoundTrips()
     {
         var entry = new CacheEntry
