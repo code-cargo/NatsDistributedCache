@@ -10,6 +10,9 @@ public partial class NatsCache
     private void LogException(Exception exception) =>
         _logger.LogError(EventIds.Exception, exception, "Exception in NatsDistributedCache");
 
+    private void LogSwallowedException(Exception exception) =>
+        _logger.LogDebug(EventIds.Exception, exception, "Swallowed exception in NatsDistributedCache while reading into buffer");
+
     private static class EventIds
     {
         public static readonly EventId Connected = new(100, nameof(Connected));

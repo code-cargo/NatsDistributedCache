@@ -144,9 +144,11 @@ public partial class NatsCache : IBufferDistributedCache
                 return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore failures here; they will surface later
+            // Swallow to honor the IBufferDistributedCache contract (return false on failure), but
+            // log at debug so a NATS connectivity error is distinguishable from a normal cache miss.
+            LogSwallowedException(ex);
         }
 
         return false;
