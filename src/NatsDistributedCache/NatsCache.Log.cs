@@ -11,7 +11,7 @@ public partial class NatsCache
         _logger.LogError(EventIds.Exception, exception, "Exception in NatsDistributedCache");
 
     private void LogSwallowedException(Exception exception) =>
-        _logger.LogDebug(EventIds.Exception, exception, "Swallowed exception in NatsDistributedCache while reading into buffer");
+        _logger.LogWarning(EventIds.Exception, exception, "NATS cache read failed in TryGetAsync; returning a cache miss");
 
     private static class EventIds
     {
