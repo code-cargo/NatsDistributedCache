@@ -24,7 +24,7 @@ public class CacheEntrySerializationBenchmarks
     /// <summary>
     /// Gets or sets the size, in bytes, of the cached payload under test.
     /// </summary>
-    [Params(128, 1024, 8192)]
+    [Params(128, 1024, 8192, 65536, 262144)]
     public int PayloadSize { get; set; }
 
     /// <summary>

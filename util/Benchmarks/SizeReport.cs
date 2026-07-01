@@ -10,7 +10,7 @@ namespace CodeCargo.Nats.DistributedCache.Benchmarks;
 /// </summary>
 internal static class SizeReport
 {
-    private static readonly int[] PayloadSizes = [128, 1024, 8192];
+    private static readonly int[] PayloadSizes = [128, 1024, 8192, 65536, 262144];
 
     /// <summary>
     /// Writes the size table to the console.

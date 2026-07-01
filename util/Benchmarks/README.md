@@ -14,7 +14,7 @@ These are in-memory serialize/deserialize benchmarks — **no NATS server or Doc
 Serialized-size comparison (fast, deterministic):
 
 ```bash
-dotnet run -c Release --project util/Benchmarks -- --sizes
+dotnet run -c Release --project util/Benchmarks -f net10.0 -- --sizes
 ```
 
 Timing + allocation benchmarks (BenchmarkDotNet, `MemoryDiagnoser`):
@@ -36,7 +36,8 @@ dotnet run -c Release --project util/Benchmarks -f net10.0 -- --filter '*_Serial
 ## What is measured
 
 `CacheEntrySerializationBenchmarks` runs `Json_Serialize` / `Json_Deserialize` across
-`[Params(128, 1024, 8192)]` payload sizes. `MemoryDiagnoser` reports `Allocated` and `Gen0`; the
-`--sizes` report shows the stored byte counts.
+`[Params(128, 1024, 8192, 65536, 262144)]` payload sizes (128 B up to 256 KiB — the practical range
+for a NATS-backed cache, whose default `max_payload` is 1 MB). `MemoryDiagnoser` reports `Allocated`
+and `Gen0`; the `--sizes` report shows the stored byte counts.
 
 The JSON baseline is defined locally (`JsonCacheEntry`) so it stays fixed as the library evolves.
