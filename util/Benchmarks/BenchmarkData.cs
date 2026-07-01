@@ -33,11 +33,23 @@ internal static class BenchmarkData
     }
 
     /// <summary>
-    /// Builds a JSON envelope with a payload of the requested size.
+    /// Builds a legacy JSON envelope with a payload of the requested size.
     /// </summary>
     /// <param name="size">Payload size in bytes.</param>
     /// <returns>The populated <see cref="JsonCacheEntry"/>.</returns>
     public static JsonCacheEntry CreateJsonEntry(int size) => new()
+    {
+        AbsoluteExpiration = AbsoluteExpiration,
+        SlidingExpirationTicks = SlidingExpirationTicks,
+        Data = CreatePayload(size),
+    };
+
+    /// <summary>
+    /// Builds a binary-envelope <see cref="CacheEntry"/> with a payload of the requested size.
+    /// </summary>
+    /// <param name="size">Payload size in bytes.</param>
+    /// <returns>The populated <see cref="CacheEntry"/>.</returns>
+    public static CacheEntry CreateBinaryEntry(int size) => new()
     {
         AbsoluteExpiration = AbsoluteExpiration,
         SlidingExpirationTicks = SlidingExpirationTicks,

@@ -70,12 +70,13 @@ public class HybridCacheGetSetRemoveTests(NatsIntegrationFixture fixture) : Test
         var serializedDateString = Encoding.ASCII.GetString(writer.WrittenSpan.ToArray());
 
         var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
-        NatsJsonContextSerializer<CacheEntry> cacheEntrySerializer = new(CacheEntryJsonContext.Default);
-        var kvEntry = await kvStore.GetEntryAsync(key, serializer: cacheEntrySerializer);
-        Assert.NotNull(kvEntry.Value?.Data);
-        var storedDateString = Encoding.ASCII.GetString(kvEntry.Value.Data);
+        var kvEntry = await kvStore.GetEntryAsync<byte[]>(key);
+        Assert.NotNull(kvEntry.Value);
+        var storedDateString = Encoding.ASCII.GetString(kvEntry.Value);
 
-        // HybridCache adds additional data to the front of the serialized value, so we're matching only the relevant data
+        // The compact binary envelope stores the payload raw (no base64/JSON), so the HybridCache-serialized
+        // value appears verbatim in the stored bytes. HybridCache also adds framing of its own to the front,
+        // so we match only the relevant portion.
         Assert.Contains(serializedDateString, storedDateString);
 
         // Assert - date is deserialized as expected

@@ -47,6 +47,7 @@
        .snk into keys/ locally flips the build to signed and will break the UnitTests compile. -->
   <ItemGroup Condition="'$(SignAssembly)' != 'true'">
     <InternalsVisibleTo Include="UnitTests" />
+    <InternalsVisibleTo Include="Benchmarks" />
   </ItemGroup>
 
 </Project>

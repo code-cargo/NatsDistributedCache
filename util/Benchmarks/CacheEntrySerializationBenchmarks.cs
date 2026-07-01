@@ -5,10 +5,9 @@ using NATS.Client.Core;
 namespace CodeCargo.Nats.DistributedCache.Benchmarks;
 
 /// <summary>
-/// Baseline serialization benchmarks for the cache envelope. This measures the current
-/// JSON+base64 envelope; issue #37 adds a compact binary format and the head-to-head comparison.
-/// <c>MemoryDiagnoser</c> reports per-operation allocations; the <c>--sizes</c> report
-/// (see <see cref="SizeReport"/>) shows the stored byte counts.
+/// Compares the legacy JSON+base64 envelope against the compact binary framing for serializing and
+/// deserializing a <see cref="CacheEntry"/>. <c>MemoryDiagnoser</c> reports the per-operation
+/// allocations; the <c>--sizes</c> report (see <see cref="SizeReport"/>) shows the stored byte counts.
 /// </summary>
 [MemoryDiagnoser]
 public class CacheEntrySerializationBenchmarks
@@ -16,10 +15,14 @@ public class CacheEntrySerializationBenchmarks
     private static readonly NatsJsonContextSerializer<JsonCacheEntry> JsonEnvelopeSerializer =
         new(BenchmarkJsonContext.Default);
 
+    private static readonly CacheEntryBinarySerializer BinaryEnvelopeSerializer = CacheEntryBinarySerializer.Default;
+
     private readonly ArrayBufferWriter<byte> _writer = new();
 
     private JsonCacheEntry _jsonEntry = null!;
+    private CacheEntry _binaryEntry = null!;
     private ReadOnlySequence<byte> _jsonBytes;
+    private ReadOnlySequence<byte> _binaryBytes;
 
     /// <summary>
     /// Gets or sets the size, in bytes, of the cached payload under test.
@@ -28,20 +31,22 @@ public class CacheEntrySerializationBenchmarks
     public int PayloadSize { get; set; }
 
     /// <summary>
-    /// Builds the sample entry and pre-serialized buffer used by the benchmarks.
+    /// Builds the sample entries and pre-serialized buffers used by the benchmarks.
     /// </summary>
     [GlobalSetup]
     public void Setup()
     {
         _jsonEntry = BenchmarkData.CreateJsonEntry(PayloadSize);
+        _binaryEntry = BenchmarkData.CreateBinaryEntry(PayloadSize);
         _jsonBytes = ToSequence(JsonEnvelopeSerializer, _jsonEntry);
+        _binaryBytes = ToSequence(BinaryEnvelopeSerializer, _binaryEntry);
     }
 
     /// <summary>
-    /// Serializes the entry using the JSON envelope.
+    /// Serializes the entry using the legacy JSON envelope (baseline).
     /// </summary>
     /// <returns>The number of bytes written.</returns>
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Json_Serialize()
     {
         _writer.Clear();
@@ -50,11 +55,30 @@ public class CacheEntrySerializationBenchmarks
     }
 
     /// <summary>
-    /// Deserializes a JSON envelope.
+    /// Serializes the entry using the compact binary framing.
+    /// </summary>
+    /// <returns>The number of bytes written.</returns>
+    [Benchmark]
+    public int Binary_Serialize()
+    {
+        _writer.Clear();
+        BinaryEnvelopeSerializer.Serialize(_writer, _binaryEntry);
+        return _writer.WrittenCount;
+    }
+
+    /// <summary>
+    /// Deserializes a JSON envelope (baseline read path).
     /// </summary>
     /// <returns>The decoded entry.</returns>
     [Benchmark]
     public JsonCacheEntry? Json_Deserialize() => JsonEnvelopeSerializer.Deserialize(_jsonBytes);
+
+    /// <summary>
+    /// Deserializes a binary envelope.
+    /// </summary>
+    /// <returns>The decoded entry.</returns>
+    [Benchmark]
+    public CacheEntry? Binary_Deserialize() => BinaryEnvelopeSerializer.Deserialize(_binaryBytes);
 
     private static ReadOnlySequence<byte> ToSequence<T>(INatsSerialize<T> serializer, T value)
     {
