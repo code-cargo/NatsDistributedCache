@@ -73,10 +73,11 @@ public partial class NatsCache : IBufferDistributedCache
     {
         var ttl = GetTtl(options);
         var entry = CreateCacheEntry(value, options);
-        var kvStore = await GetKvStore().ConfigureAwait(false);
 
         try
         {
+            var kvStore = await GetKvStore().ConfigureAwait(false);
+
             // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
             await ((NatsKVStore)kvStore)
                 .PutWithTtlAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
@@ -105,25 +106,55 @@ public partial class NatsCache : IBufferDistributedCache
     }
 
     /// <inheritdoc />
-    public void Remove(string key) => RemoveAsync(key, null).GetAwaiter().GetResult();
+    public void Remove(string key) => RemoveAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public async Task RemoveAsync(string key, CancellationToken token = default) =>
-        await RemoveAsync(key, null, token).ConfigureAwait(false);
+    public async Task RemoveAsync(string key, CancellationToken token = default)
+    {
+        try
+        {
+            await RemoveCoreAsync(key, null, token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogException(ex);
+            throw;
+        }
+    }
 
     /// <inheritdoc />
     public void Refresh(string key) => RefreshAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public Task RefreshAsync(string key, CancellationToken token = default) =>
-        GetAndRefreshAsync(key, token: token);
+    public async Task RefreshAsync(string key, CancellationToken token = default)
+    {
+        try
+        {
+            await GetAndRefreshAsync(key, token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogException(ex);
+            throw;
+        }
+    }
 
     /// <inheritdoc />
     public byte[]? Get(string key) => GetAsync(key).GetAwaiter().GetResult();
 
     /// <inheritdoc />
-    public Task<byte[]?> GetAsync(string key, CancellationToken token = default) =>
-        GetAndRefreshAsync(key, token: token);
+    public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
+    {
+        try
+        {
+            return await GetAndRefreshAsync(key, token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogException(ex);
+            throw;
+        }
+    }
 
     /// <inheritdoc />
     public bool TryGet(string key, IBufferWriter<byte> destination) =>
@@ -137,16 +168,25 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            var result = await GetAsync(key, token).ConfigureAwait(false);
+            var result = await GetAndRefreshAsync(key, token).ConfigureAwait(false);
             if (result != null)
             {
                 destination.Write(result);
                 return true;
             }
         }
-        catch
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // Ignore failures here; they will surface later
+            // Cooperative cancellation is not a cache failure; let it propagate rather than
+            // masquerading as a cache miss.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A read failure (e.g. NATS connectivity or a corrupt entry) is swallowed to honor the
+            // IBufferDistributedCache contract (return false), but logged at warning so it stays
+            // visible in production and is distinguishable from a normal cache miss.
+            LogSwallowedException(ex);
         }
 
         return false;
@@ -234,12 +274,11 @@ public partial class NatsCache : IBufferDistributedCache
                 LogConnected(_bucketName);
                 return store;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Reset the lazy initializer on failure for next attempt
+                // Reset the lazy initializer on failure so the next attempt retries. The exception
+                // propagates to the calling operation, which logs it once at the appropriate level.
                 _lazyKvStore = CreateLazyKvStore();
-
-                LogException(ex);
                 throw;
             }
         });
@@ -271,7 +310,7 @@ public partial class NatsCache : IBufferDistributedCache
             {
                 // NatsKVWrongLastRevisionException is caught below
                 var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
-                await RemoveAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
                 return null;
             }
 
@@ -282,11 +321,6 @@ public partial class NatsCache : IBufferDistributedCache
         {
             // Someone else updated it; that's fine, we'll get the latest version next time
             return null;
-        }
-        catch (Exception ex)
-        {
-            LogException(ex);
-            throw;
         }
 
         // Local Functions
@@ -327,7 +361,7 @@ public partial class NatsCache : IBufferDistributedCache
         }
     }
 
-    private async Task RemoveAsync(
+    private async Task RemoveCoreAsync(
         string key,
         NatsKVDeleteOpts? natsKvDeleteOpts = null,
         CancellationToken token = default)
