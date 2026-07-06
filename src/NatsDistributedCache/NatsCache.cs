@@ -29,7 +29,12 @@ public partial class NatsCache : IBufferDistributedCache
     // Compact binary serializer for the CacheEntry envelope (replaces the previous JSON+base64 format).
     private static readonly CacheEntryBinarySerializer CacheEntrySerializer = CacheEntryBinarySerializer.Default;
 
+    // Non-zero LimitMarkerTTL enables per-key TTL (NATS 2.11+); the actual per-key expiry is set per Put.
+    private static readonly TimeSpan DefaultLimitMarkerTtl = TimeSpan.FromSeconds(1);
+
     private readonly string _bucketName;
+    private readonly bool _createBucketIfNotExists;
+    private readonly Func<NatsKVConfig, NatsKVConfig>? _configureBucket;
     private readonly INatsCacheKeyEncoder _keyEncoder;
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
@@ -49,6 +54,8 @@ public partial class NatsCache : IBufferDistributedCache
         _keyPrefix = string.IsNullOrEmpty(options.CacheKeyPrefix)
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');
+        _createBucketIfNotExists = options.CreateBucketIfNotExists;
+        _configureBucket = options.ConfigureBucket;
         _lazyKvStore = CreateLazyKvStore();
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
@@ -252,6 +259,31 @@ public partial class NatsCache : IBufferDistributedCache
     internal bool IsAbsolutelyExpired(CacheEntry entry) =>
         entry.AbsoluteExpiration.HasValue && TimeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
 
+    // Builds the NatsKVConfig used when CreateBucketIfNotExists is enabled. Pure and synchronous (does not
+    // touch the NATS connection), so it is unit-testable without a server. Cache-appropriate defaults are
+    // applied first, then the user hook (a record `with` transform) may override them. The bucket name is
+    // re-asserted afterward so the hook cannot retarget creation to a bucket other than the one GetKvStore
+    // reads from.
+    internal NatsKVConfig BuildBucketConfig()
+    {
+        var config = new NatsKVConfig(_bucketName)
+        {
+            History = 1, // required for well-defined per-key TTL behavior
+            LimitMarkerTTL = DefaultLimitMarkerTtl, // non-zero => enables per-key TTL (NATS 2.11+)
+        };
+
+        if (_configureBucket != null)
+        {
+            config = _configureBucket(config);
+            if (config.Bucket != _bucketName)
+            {
+                config = config with { Bucket = _bucketName };
+            }
+        }
+
+        return config;
+    }
+
     // Resolves the effective absolute expiration instant: a relative expiration (offset from the
     // current clock) takes precedence over an explicit absolute expiration when both are set.
     private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
@@ -270,7 +302,9 @@ public partial class NatsCache : IBufferDistributedCache
             try
             {
                 var kv = _natsConnection.CreateKeyValueStoreContext();
-                var store = await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
+                var store = _createBucketIfNotExists
+                    ? await kv.CreateOrUpdateStoreAsync(BuildBucketConfig()).ConfigureAwait(false)
+                    : await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
                 LogConnected(_bucketName);
                 return store;
             }

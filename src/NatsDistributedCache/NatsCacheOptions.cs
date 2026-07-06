@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using NATS.Client.KeyValueStore;
 
 namespace CodeCargo.Nats.DistributedCache
 {
@@ -21,6 +22,41 @@ namespace CodeCargo.Nats.DistributedCache
         /// Allows partitioning a single backend cache for use with multiple apps/services.
         /// </summary>
         public string? CacheKeyPrefix { get; set; }
+
+        /// <summary>
+        /// When <see langword="true"/>, the <see cref="BucketName"/> KV bucket is created (via
+        /// <c>CreateOrUpdateStoreAsync</c>) the first time the cache is used, if it does not already exist.
+        /// Defaults to <see langword="false"/>, in which case the bucket must be pre-created by the operator.
+        /// </summary>
+        /// <remarks>
+        /// Because <c>CreateOrUpdateStoreAsync</c> is used, an existing bucket is also updated to match the
+        /// resolved <see cref="NatsKVConfig"/>; immutable properties (for example <c>Storage</c>) cannot be
+        /// changed on an existing bucket and will surface an error on first use. Creating or updating a bucket
+        /// requires JetStream stream-management permissions.
+        /// </remarks>
+        public bool CreateBucketIfNotExists { get; set; }
+
+        /// <summary>
+        /// Optional hook to customize the <see cref="NatsKVConfig"/> used when
+        /// <see cref="CreateBucketIfNotExists"/> is enabled (for example <c>Storage</c>,
+        /// <c>NumberOfReplicas</c>, <c>MaxBytes</c>, or <c>MaxAge</c>). Ignored when
+        /// <see cref="CreateBucketIfNotExists"/> is <see langword="false"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="NatsKVConfig"/> is an immutable record, so the hook receives the pre-populated config
+        /// and returns a modified copy using a <c>with</c> expression, for example
+        /// <c>options.ConfigureBucket = cfg =&gt; cfg with { Storage = NatsKVStorageType.Memory };</c>.
+        /// </para>
+        /// <para>
+        /// The library pre-populates the config with cache-appropriate defaults — <c>History = 1</c> and a
+        /// non-zero <c>LimitMarkerTTL</c>, both required for per-key TTL on NATS 2.11+ — before this hook runs,
+        /// so the hook can override any property. The <c>Bucket</c> name is always forced back to
+        /// <see cref="BucketName"/> afterward. Overriding <c>History</c> to a value other than 1, or clearing
+        /// <c>LimitMarkerTTL</c>, disables reliable per-key TTL.
+        /// </para>
+        /// </remarks>
+        public Func<NatsKVConfig, NatsKVConfig>? ConfigureBucket { get; set; }
 
         NatsCacheOptions IOptions<NatsCacheOptions>.Value => this;
     }

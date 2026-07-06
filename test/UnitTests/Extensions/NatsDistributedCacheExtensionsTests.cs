@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NATS.Client.Core;
+using NATS.Client.KeyValueStore;
 
 namespace CodeCargo.Nats.DistributedCache.UnitTests.Extensions;
 
@@ -77,6 +78,41 @@ public class CacheServiceExtensionsUnitTests
         // Assert
         Assert.Equal(expectedNamespace, options.CacheKeyPrefix);
         Assert.Equal("cache", options.BucketName);
+    }
+
+    [Fact]
+    public void AddNatsCache_SetsBucketCreationOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        Func<NatsKVConfig, NatsKVConfig> configureBucket = cfg => cfg;
+
+        // Act
+        services.AddNatsDistributedCache(options =>
+        {
+            options.BucketName = "cache";
+            options.CreateBucketIfNotExists = true;
+            options.ConfigureBucket = configureBucket;
+        });
+
+        // Build the provider to verify options
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<NatsCacheOptions>>().Value;
+
+        // Assert
+        Assert.True(options.CreateBucketIfNotExists);
+        Assert.Same(configureBucket, options.ConfigureBucket);
+    }
+
+    [Fact]
+    public void NatsCacheOptions_BucketCreation_DefaultsToDisabled()
+    {
+        // Guards the "disabled by default / existing behavior unchanged" contract for issue #38.
+        var options = new NatsCacheOptions();
+
+        Assert.False(options.CreateBucketIfNotExists);
+        Assert.Null(options.ConfigureBucket);
     }
 
     [Fact]
