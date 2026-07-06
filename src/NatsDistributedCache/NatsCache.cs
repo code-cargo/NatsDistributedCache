@@ -316,8 +316,9 @@ public partial class NatsCache : IBufferDistributedCache
         {
             return await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
         }
-        catch (NatsJSApiException ex) when (ex.Error.ErrCode == StreamNotFoundErrCode)
+        catch (NatsJSApiException ex) when (ex.Error is { ErrCode: StreamNotFoundErrCode })
         {
+            // Null-safe pattern: a null Error simply doesn't match, so the filter is false rather than throwing.
             return await kv.CreateStoreAsync(BuildBucketConfig()).ConfigureAwait(false);
         }
     }
