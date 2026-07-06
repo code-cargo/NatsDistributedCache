@@ -9,11 +9,17 @@ A .NET 8+ library (tested on .NET 8 and .NET 10) for using NATS with `HybridCach
 ## Requirements
 
 - NATS 2.11 or later
-- A NATS KV bucket with `LimitMarkerTTL` set for per-key TTL support. Example:
+- A NATS KV bucket with `LimitMarkerTTL` set for per-key TTL support. Either enable
+  [automatic bucket creation](#automatic-bucket-creation) (`options.CreateBucketIfNotExists = true`), or
+  pre-create the bucket yourself:
     ```csharp
+    using NATS.Client.KeyValueStore;
+    using NATS.Net;
+
     // assuming an INatsConnection natsConnection
     var kvContext = natsConnection.CreateKeyValueStoreContext();
-    await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
+    await kvContext.CreateOrUpdateStoreAsync(
+        new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1), History = 1 });
     ```
 
 ## Use with `HybridCache`
@@ -37,8 +43,6 @@ dotnet add package NATS.Extensions.Microsoft.DependencyInjection
 using CodeCargo.Nats.HybridCacheExtensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NATS.Client.Core;
-using NATS.Client.KeyValueStore;
 using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
@@ -56,18 +60,14 @@ builder.ConfigureServices(services =>
     services.AddNatsHybridCache(options =>
     {
         options.BucketName = "cache";
+
+        // Create the KV bucket on first use if it doesn't already exist.
+        // Omit this if you pre-create the bucket yourself (see Requirements).
+        options.CreateBucketIfNotExists = true;
     });
 });
 
 var host = builder.Build();
-
-// Ensure that the KV Store is created
-var natsConnection = host.Services.GetRequiredService<INatsConnection>();
-var kvContext = natsConnection.CreateKeyValueStoreContext();
-await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache")
-{
-    LimitMarkerTTL = TimeSpan.FromSeconds(1)
-});
 
 // Start the host
 await host.RunAsync();
@@ -88,8 +88,6 @@ dotnet add package NATS.Extensions.Microsoft.DependencyInjection
 using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NATS.Client.Core;
-using NATS.Client.KeyValueStore;
 using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
@@ -107,19 +105,59 @@ builder.ConfigureServices(services =>
     services.AddNatsDistributedCache(options =>
     {
         options.BucketName = "cache";
+
+        // Create the KV bucket on first use if it doesn't already exist.
+        // Omit this if you pre-create the bucket yourself (see Requirements).
+        options.CreateBucketIfNotExists = true;
     });
 });
 
 var host = builder.Build();
 
-// Ensure that the KV Store is created
-var natsConnection = host.Services.GetRequiredService<INatsConnection>();
-var kvContext = natsConnection.CreateKeyValueStoreContext();
-await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
-
 // Start the host
 await host.RunAsync();
 ```
+
+## Automatic bucket creation
+
+By default the KV bucket must already exist. Set `CreateBucketIfNotExists = true` to have the cache
+create it on first use if it is missing, with the settings per-key TTL requires —
+`History = 1` and a non-zero `LimitMarkerTTL`:
+
+```csharp
+services.AddNatsDistributedCache(options =>
+{
+    options.BucketName = "cache";
+    options.CreateBucketIfNotExists = true;
+});
+```
+
+To customize storage, replication, or size limits, use `ConfigureBucketOnCreate`. `NatsKVConfig` is an
+immutable record, so return a modified copy with a `with` expression:
+
+```csharp
+using NATS.Client.KeyValueStore;
+
+services.AddNatsDistributedCache(options =>
+{
+    options.BucketName = "cache";
+    options.CreateBucketIfNotExists = true;
+    options.ConfigureBucketOnCreate = config => config with
+    {
+        Storage = NatsKVStorageType.File,
+        NumberOfReplicas = 3,
+    };
+});
+```
+
+Notes:
+
+- Only a missing bucket is created; an existing bucket is used as-is and never modified, so
+  operator-managed settings are preserved. `ConfigureBucketOnCreate` therefore only applies when the bucket is
+  first created.
+- Creating a bucket requires JetStream stream-management permissions.
+- Overriding `History` (away from `1`) or clearing `LimitMarkerTTL` in `ConfigureBucketOnCreate` disables
+  reliable per-key TTL.
 
 ## Controlling Expiration Timing
 

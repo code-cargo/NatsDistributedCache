@@ -1,8 +1,6 @@
 using CodeCargo.Nats.DistributedCache;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NATS.Client.Core;
-using NATS.Client.KeyValueStore;
 using NATS.Extensions.Microsoft.DependencyInjection;
 using NATS.Net;
 
@@ -25,15 +23,14 @@ public static class DistributedCacheExample
             services.AddNatsDistributedCache(options =>
             {
                 options.BucketName = "cache";
+
+                // Create the KV bucket on first use if it doesn't already exist.
+                // Omit this if you pre-create the bucket yourself (see Requirements).
+                options.CreateBucketIfNotExists = true;
             });
         });
 
         var host = builder.Build();
-
-        // Ensure that the KV Store is created
-        var natsConnection = host.Services.GetRequiredService<INatsConnection>();
-        var kvContext = natsConnection.CreateKeyValueStoreContext();
-        await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
 
         // Start the host
         await host.RunAsync();

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
@@ -26,10 +27,19 @@ public class CacheEntry
 /// </summary>
 public partial class NatsCache : IBufferDistributedCache
 {
+    // JetStream "stream not found" error code (JSStreamNotFoundErr), returned by GetStoreAsync when the
+    // KV bucket does not exist.
+    private const int StreamNotFoundErrCode = 10059;
+
     // Compact binary serializer for the CacheEntry envelope (replaces the previous JSON+base64 format).
     private static readonly CacheEntryBinarySerializer CacheEntrySerializer = CacheEntryBinarySerializer.Default;
 
+    // Non-zero LimitMarkerTTL enables per-key TTL (NATS 2.11+); the actual per-key expiry is set per Put.
+    private static readonly TimeSpan DefaultLimitMarkerTtl = TimeSpan.FromSeconds(1);
+
     private readonly string _bucketName;
+    private readonly bool _createBucketIfNotExists;
+    private readonly Func<NatsKVConfig, NatsKVConfig>? _configureBucketOnCreate;
     private readonly INatsCacheKeyEncoder _keyEncoder;
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
@@ -49,6 +59,8 @@ public partial class NatsCache : IBufferDistributedCache
         _keyPrefix = string.IsNullOrEmpty(options.CacheKeyPrefix)
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');
+        _createBucketIfNotExists = options.CreateBucketIfNotExists;
+        _configureBucketOnCreate = options.ConfigureBucketOnCreate;
         _lazyKvStore = CreateLazyKvStore();
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
@@ -252,6 +264,33 @@ public partial class NatsCache : IBufferDistributedCache
     internal bool IsAbsolutelyExpired(CacheEntry entry) =>
         entry.AbsoluteExpiration.HasValue && TimeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
 
+    // Builds the NatsKVConfig used when CreateBucketIfNotExists is enabled. Pure and synchronous (does not
+    // touch the NATS connection), so it is unit-testable without a server. Cache-appropriate defaults are
+    // applied first, then the user hook (a record `with` transform) may override them. The bucket name is
+    // re-asserted afterward so the hook cannot retarget creation to a bucket other than the one GetKvStore
+    // reads from.
+    internal NatsKVConfig BuildBucketConfig()
+    {
+        var config = new NatsKVConfig(_bucketName)
+        {
+            History = 1, // required for well-defined per-key TTL behavior
+            LimitMarkerTTL = DefaultLimitMarkerTtl, // non-zero => enables per-key TTL (NATS 2.11+)
+        };
+
+        if (_configureBucketOnCreate != null)
+        {
+            config = _configureBucketOnCreate(config)
+                     ?? throw new InvalidOperationException(
+                         $"{nameof(NatsCacheOptions)}.{nameof(NatsCacheOptions.ConfigureBucketOnCreate)} must not return null.");
+            if (config.Bucket != _bucketName)
+            {
+                config = config with { Bucket = _bucketName };
+            }
+        }
+
+        return config;
+    }
+
     // Resolves the effective absolute expiration instant: a relative expiration (offset from the
     // current clock) takes precedence over an explicit absolute expiration when both are set.
     private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
@@ -264,13 +303,35 @@ public partial class NatsCache : IBufferDistributedCache
             ? _keyEncoder.Encode(key)
             : _keyEncoder.Encode($"{_keyPrefix}.{key}");
 
+    // Returns the KV store for the configured bucket, creating it only if it does not already exist. An
+    // existing (operator-managed) bucket is used as-is and never modified — matching the
+    // CreateBucketIfNotExists contract — so CreateStoreAsync is used rather than CreateOrUpdateStoreAsync.
+    // GetStoreAsync is attempted first (rather than listing every bucket) so this stays O(1) and needs no
+    // stream-list permission; only a genuine "stream not found" triggers creation, and any other error
+    // (connectivity, auth) propagates unchanged. A create that loses a race with a concurrent creator
+    // surfaces as a failure and is retried via the reset-on-failure path in CreateLazyKvStore.
+    private async Task<INatsKVStore> GetOrCreateStoreAsync(INatsKVContext kv)
+    {
+        try
+        {
+            return await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
+        }
+        catch (NatsJSApiException ex) when (ex.Error is { ErrCode: StreamNotFoundErrCode })
+        {
+            // Null-safe pattern: a null Error simply doesn't match, so the filter is false rather than throwing.
+            return await kv.CreateStoreAsync(BuildBucketConfig()).ConfigureAwait(false);
+        }
+    }
+
     private Lazy<Task<INatsKVStore>> CreateLazyKvStore() =>
         new(async () =>
         {
             try
             {
                 var kv = _natsConnection.CreateKeyValueStoreContext();
-                var store = await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
+                var store = _createBucketIfNotExists
+                    ? await GetOrCreateStoreAsync(kv).ConfigureAwait(false)
+                    : await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
                 LogConnected(_bucketName);
                 return store;
             }
