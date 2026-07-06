@@ -93,7 +93,7 @@ public class CacheServiceExtensionsUnitTests
         {
             options.BucketName = "cache";
             options.CreateBucketIfNotExists = true;
-            options.ConfigureBucket = configureBucket;
+            options.ConfigureBucketOnCreate = configureBucket;
         });
 
         // Build the provider to verify options
@@ -102,7 +102,7 @@ public class CacheServiceExtensionsUnitTests
 
         // Assert
         Assert.True(options.CreateBucketIfNotExists);
-        Assert.Same(configureBucket, options.ConfigureBucket);
+        Assert.Same(configureBucket, options.ConfigureBucketOnCreate);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class CacheServiceExtensionsUnitTests
         var options = new NatsCacheOptions();
 
         Assert.False(options.CreateBucketIfNotExists);
-        Assert.Null(options.ConfigureBucket);
+        Assert.Null(options.ConfigureBucketOnCreate);
     }
 
     [Fact]

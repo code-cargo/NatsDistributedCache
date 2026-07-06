@@ -39,7 +39,7 @@ public partial class NatsCache : IBufferDistributedCache
 
     private readonly string _bucketName;
     private readonly bool _createBucketIfNotExists;
-    private readonly Func<NatsKVConfig, NatsKVConfig>? _configureBucket;
+    private readonly Func<NatsKVConfig, NatsKVConfig>? _configureBucketOnCreate;
     private readonly INatsCacheKeyEncoder _keyEncoder;
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
@@ -60,7 +60,7 @@ public partial class NatsCache : IBufferDistributedCache
             ? string.Empty
             : options.CacheKeyPrefix.TrimEnd('.');
         _createBucketIfNotExists = options.CreateBucketIfNotExists;
-        _configureBucket = options.ConfigureBucket;
+        _configureBucketOnCreate = options.ConfigureBucketOnCreate;
         _lazyKvStore = CreateLazyKvStore();
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
@@ -277,11 +277,11 @@ public partial class NatsCache : IBufferDistributedCache
             LimitMarkerTTL = DefaultLimitMarkerTtl, // non-zero => enables per-key TTL (NATS 2.11+)
         };
 
-        if (_configureBucket != null)
+        if (_configureBucketOnCreate != null)
         {
-            config = _configureBucket(config)
+            config = _configureBucketOnCreate(config)
                      ?? throw new InvalidOperationException(
-                         $"{nameof(NatsCacheOptions)}.{nameof(NatsCacheOptions.ConfigureBucket)} must not return null.");
+                         $"{nameof(NatsCacheOptions)}.{nameof(NatsCacheOptions.ConfigureBucketOnCreate)} must not return null.");
             if (config.Bucket != _bucketName)
             {
                 config = config with { Bucket = _bucketName };

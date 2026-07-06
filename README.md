@@ -132,7 +132,7 @@ services.AddNatsDistributedCache(options =>
 });
 ```
 
-To customize storage, replication, or size limits, use `ConfigureBucket`. `NatsKVConfig` is an
+To customize storage, replication, or size limits, use `ConfigureBucketOnCreate`. `NatsKVConfig` is an
 immutable record, so return a modified copy with a `with` expression:
 
 ```csharp
@@ -142,7 +142,7 @@ services.AddNatsDistributedCache(options =>
 {
     options.BucketName = "cache";
     options.CreateBucketIfNotExists = true;
-    options.ConfigureBucket = config => config with
+    options.ConfigureBucketOnCreate = config => config with
     {
         Storage = NatsKVStorageType.File,
         NumberOfReplicas = 3,
@@ -153,10 +153,10 @@ services.AddNatsDistributedCache(options =>
 Notes:
 
 - Only a missing bucket is created; an existing bucket is used as-is and never modified, so
-  operator-managed settings are preserved. `ConfigureBucket` therefore only applies when the bucket is
+  operator-managed settings are preserved. `ConfigureBucketOnCreate` therefore only applies when the bucket is
   first created.
 - Creating a bucket requires JetStream stream-management permissions.
-- Overriding `History` (away from `1`) or clearing `LimitMarkerTTL` in `ConfigureBucket` disables
+- Overriding `History` (away from `1`) or clearing `LimitMarkerTTL` in `ConfigureBucketOnCreate` disables
   reliable per-key TTL.
 
 ## Controlling Expiration Timing

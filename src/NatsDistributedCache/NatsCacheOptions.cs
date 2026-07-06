@@ -45,7 +45,7 @@ namespace CodeCargo.Nats.DistributedCache
         /// <para>
         /// <see cref="NatsKVConfig"/> is an immutable record, so the hook receives the pre-populated config
         /// and returns a modified copy using a <c>with</c> expression, for example
-        /// <c>options.ConfigureBucket = cfg =&gt; cfg with { Storage = NatsKVStorageType.Memory };</c>.
+        /// <c>options.ConfigureBucketOnCreate = cfg =&gt; cfg with { Storage = NatsKVStorageType.Memory };</c>.
         /// </para>
         /// <para>
         /// The library pre-populates the config with cache-appropriate defaults — <c>History = 1</c> and a
@@ -55,7 +55,7 @@ namespace CodeCargo.Nats.DistributedCache
         /// <c>LimitMarkerTTL</c>, disables reliable per-key TTL.
         /// </para>
         /// </remarks>
-        public Func<NatsKVConfig, NatsKVConfig>? ConfigureBucket { get; set; }
+        public Func<NatsKVConfig, NatsKVConfig>? ConfigureBucketOnCreate { get; set; }
 
         NatsCacheOptions IOptions<NatsCacheOptions>.Value => this;
     }

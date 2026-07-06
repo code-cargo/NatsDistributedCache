@@ -25,7 +25,7 @@ public class BucketAutoCreationTests(NatsIntegrationFixture fixture) : IAsyncLif
         const string bucketName = "auto-created-cache";
         var ct = TestContext.Current.CancellationToken;
 
-        // Memory storage keeps the test light and exercises the ConfigureBucket hook end-to-end.
+        // Memory storage keeps the test light and exercises the ConfigureBucketOnCreate hook end-to-end.
         var cache = BuildCache(bucketName, cfg => cfg with { Storage = NatsKVStorageType.Memory });
         var value = new byte[] { 1, 2, 3 };
 
@@ -117,7 +117,7 @@ public class BucketAutoCreationTests(NatsIntegrationFixture fixture) : IAsyncLif
         {
             options.BucketName = bucketName;
             options.CreateBucketIfNotExists = true;
-            options.ConfigureBucket = configureBucket;
+            options.ConfigureBucketOnCreate = configureBucket;
         });
 
         var serviceProvider = services.BuildServiceProvider();

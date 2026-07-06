@@ -35,9 +35,9 @@ public class BucketConfigUnitTests
     }
 
     [Fact]
-    public void BuildBucketConfig_InvokesConfigureBucketHook()
+    public void BuildBucketConfig_InvokesConfigureBucketOnCreateHook()
     {
-        var config = CreateCache(o => o.ConfigureBucket = cfg => cfg with
+        var config = CreateCache(o => o.ConfigureBucketOnCreate = cfg => cfg with
         {
             Storage = NatsKVStorageType.Memory,
             NumberOfReplicas = 3,
@@ -50,7 +50,7 @@ public class BucketConfigUnitTests
     [Fact]
     public void BuildBucketConfig_HookCanOverrideDefaults()
     {
-        var config = CreateCache(o => o.ConfigureBucket = cfg => cfg with
+        var config = CreateCache(o => o.ConfigureBucketOnCreate = cfg => cfg with
         {
             History = 5,
             LimitMarkerTTL = TimeSpan.FromSeconds(30),
@@ -65,7 +65,7 @@ public class BucketConfigUnitTests
     public void BuildBucketConfig_ReassertsBucketName_WhenHookChangesIt()
     {
         // The hook must not be able to retarget creation to a different bucket than the cache reads from.
-        var config = CreateCache(o => o.ConfigureBucket = cfg => cfg with { Bucket = "some-other-bucket" })
+        var config = CreateCache(o => o.ConfigureBucketOnCreate = cfg => cfg with { Bucket = "some-other-bucket" })
             .BuildBucketConfig();
 
         Assert.Equal(BucketName, config.Bucket);
@@ -74,10 +74,10 @@ public class BucketConfigUnitTests
     [Fact]
     public void BuildBucketConfig_ThrowsClearException_WhenHookReturnsNull()
     {
-        var cache = CreateCache(o => o.ConfigureBucket = _ => null!);
+        var cache = CreateCache(o => o.ConfigureBucketOnCreate = _ => null!);
 
         var ex = Assert.Throws<InvalidOperationException>(() => cache.BuildBucketConfig());
-        Assert.Contains(nameof(NatsCacheOptions.ConfigureBucket), ex.Message);
+        Assert.Contains(nameof(NatsCacheOptions.ConfigureBucketOnCreate), ex.Message);
     }
 
     // BuildBucketConfig never touches the connection, so a bare mock is sufficient and no server is needed.
