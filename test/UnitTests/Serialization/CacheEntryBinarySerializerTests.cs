@@ -159,12 +159,14 @@ public class CacheEntryBinarySerializerTests
         Assert.Null(Deserialize(bytes));
     }
 
-    [Fact]
-    public void Deserialize_OutOfRangeSlidingTicks_ReturnsNull()
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(CacheEntryBinarySerializer.MaxTtlTicks + 1)]
+    public void Deserialize_OutOfRangeSlidingTicks_ReturnsNull(long slidingTicks)
     {
-        // flags = HasSlidingExpiration, followed by an absurd sliding tick value. Before validation
-        // this deserialized "successfully" and yielded a ~10,675-day TTL; it must now fail closed.
-        Assert.Null(Deserialize(SlidingOnly(long.MaxValue)));
+        // Before validation an absurd value deserialized "successfully": TimeSpan.FromTicks(long.MaxValue)
+        // is ~10,675,199 days (~29,000 years). Anything above the ceiling must now fail closed.
+        Assert.Null(Deserialize(SlidingOnly(slidingTicks)));
     }
 
     [Theory]
@@ -189,11 +191,12 @@ public class CacheEntryBinarySerializerTests
     [Fact]
     public void Deserialize_MaxAcceptedSlidingTicks_RoundTrips()
     {
-        // The upper bound (the full DateTimeOffset tick range) is inclusive and still deserializes.
-        var result = Deserialize(SlidingOnly(DateTimeOffset.MaxValue.Ticks));
+        // The upper bound (int.MaxValue seconds, the largest window the NATS TTL encoding supports) is
+        // inclusive and still deserializes.
+        var result = Deserialize(SlidingOnly(CacheEntryBinarySerializer.MaxTtlTicks));
 
         Assert.NotNull(result);
-        Assert.Equal(DateTimeOffset.MaxValue.Ticks, result.SlidingExpirationTicks);
+        Assert.Equal(CacheEntryBinarySerializer.MaxTtlTicks, result.SlidingExpirationTicks);
     }
 
     [Fact]

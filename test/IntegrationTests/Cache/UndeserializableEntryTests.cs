@@ -41,8 +41,14 @@ public class UndeserializableEntryTests(NatsIntegrationFixture fixture) : TestBa
             new RecordingLogger<NatsCache>());
         await WriteRawEntryAsync(key, LegacyJsonEntry);
 
-        // The read leaves the entry untouched (no eviction), so it is still a miss on a second read.
+        // The read leaves the entry untouched (no eviction): the original legacy bytes are still in
+        // the bucket afterwards, and it is still a miss on a second read.
         Assert.Null(await cache.GetAsync(key, TestContext.Current.CancellationToken));
+        var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
+        var storedEntry = await kvStore.GetEntryAsync<byte[]>(
+            new NatsCacheKeyEncoder().Encode(key),
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(LegacyJsonEntry, storedEntry.Value);
 
         // Writing the key (a no-TTL entry, as in the migration case) overwrites the legacy bytes...
         var value = Encoding.UTF8.GetBytes($"healed-{Guid.NewGuid()}");

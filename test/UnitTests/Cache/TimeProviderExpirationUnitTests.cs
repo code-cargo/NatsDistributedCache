@@ -95,4 +95,28 @@ public class TimeProviderExpirationUnitTests : TestBase
 
         Assert.Equal(TimeSpan.FromMinutes(2), ttl);
     }
+
+    [Fact]
+    public void GetTtlAcceptsMaxSlidingExpiration()
+    {
+        // The ceiling itself is valid: it round-trips through both the serializer and the
+        // second-granularity NATS TTL encoding without overflowing.
+        var max = TimeSpan.FromTicks(CacheEntryBinarySerializer.MaxTtlTicks);
+
+        var ttl = Cache.GetTtl(new DistributedCacheEntryOptions().SetSlidingExpiration(max));
+
+        Assert.Equal(max, ttl);
+    }
+
+    [Fact]
+    public void GetTtlWithFarAbsoluteAndSlidingReturnsSliding()
+    {
+        // A far-future absolute paired with a small sliding must not be rejected: the effective TTL is
+        // the (encodable) sliding window, not the huge absolute one, so the ceiling check is not tripped.
+        var ttl = Cache.GetTtl(new DistributedCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromDays(365 * 100))
+            .SetSlidingExpiration(TimeSpan.FromMinutes(10)));
+
+        Assert.Equal(TimeSpan.FromMinutes(10), ttl);
+    }
 }

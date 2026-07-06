@@ -27,13 +27,15 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
     internal const byte FormatVersion = 1;
 
     /// <summary>
-    /// The largest accepted sliding-expiration window, matching the absolute-expiration ceiling: a
-    /// sliding window cannot exceed the full <see cref="DateTimeOffset"/> tick range. Enforced on both
-    /// the write path (<c>NatsCache.GetTtl</c> throws) and the read path here (fail closed) so that any
-    /// value which can be serialized can also be deserialized — no legitimately written entry becomes
-    /// an undeserializable miss.
+    /// The largest expiration window the cache can represent, in ticks. NATS message TTLs are encoded as
+    /// whole seconds in a 32-bit field (<c>(int)ttl.TotalSeconds</c> in <c>NatsExtensions.ToTtlString</c>),
+    /// so a window beyond <see cref="int.MaxValue"/> seconds (~68 years) would overflow the cast and emit
+    /// an invalid TTL header. <c>NatsCache.GetTtl</c> rejects sliding and absolute expirations that exceed
+    /// this on write, and the deserializer fails closed on stored sliding ticks above it, so every
+    /// accepted value round-trips end to end and no legitimately written entry becomes an
+    /// undeserializable miss.
     /// </summary>
-    internal static readonly long MaxSlidingExpirationTicks = DateTimeOffset.MaxValue.Ticks;
+    internal const long MaxTtlTicks = int.MaxValue * TimeSpan.TicksPerSecond;
 
     private const byte HasAbsoluteExpiration = 0b0000_0001;
     private const byte HasSlidingExpiration = 0b0000_0010;
@@ -124,12 +126,12 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
         {
             if (!reader.TryReadLittleEndian(out long slidingTicks) ||
                 slidingTicks <= 0 ||
-                slidingTicks > MaxSlidingExpirationTicks)
+                slidingTicks > MaxTtlTicks)
             {
                 // Missing, non-positive, or out-of-range sliding ticks (corrupt entry): fail closed to
-                // a miss, mirroring the absolute-ticks bounds check above. A valid sliding window is
-                // always a positive TimeSpan within (0, MaxSlidingExpirationTicks]; the write path
-                // enforces the same ceiling, so any legitimately written value round-trips.
+                // a miss, like the absolute-ticks bounds check above. A valid sliding window is always
+                // a positive TimeSpan within (0, MaxTtlTicks]; the write path enforces the same ceiling,
+                // so any legitimately written value round-trips.
                 return null;
             }
 

@@ -231,11 +231,11 @@ public partial class NatsCache : IBufferDistributedCache
                 "The sliding expiration value must be positive.");
         }
 
-        // Reject sliding windows the serializer could not round-trip. The read path fails closed above
-        // MaxSlidingExpirationTicks, so accepting a larger value here would silently store an entry that
+        // Reject sliding windows the serializer/TTL encoding could not round-trip. The read path fails
+        // closed above MaxTtlTicks, so accepting a larger value here would silently store an entry that
         // later reads back as an undeserializable cache miss.
         if (options.SlidingExpiration.HasValue &&
-            options.SlidingExpiration.Value.Ticks > CacheEntryBinarySerializer.MaxSlidingExpirationTicks)
+            options.SlidingExpiration.Value.Ticks > CacheEntryBinarySerializer.MaxTtlTicks)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.SlidingExpiration),
@@ -256,10 +256,33 @@ public partial class NatsCache : IBufferDistributedCache
             return TimeSpan.Zero;
         }
 
-        // If there's also a sliding expiration, use the minimum of the two
-        return options.SlidingExpiration.HasValue
-            ? TimeSpan.FromTicks(Math.Min(ttl.Ticks, options.SlidingExpiration.Value.Ticks))
-            : ttl;
+        // If there's also a sliding expiration, use the minimum of the two. Sliding is bounded to
+        // MaxTtlTicks above, so the minimum is always within the encodable range.
+        if (options.SlidingExpiration.HasValue)
+        {
+            return TimeSpan.FromTicks(Math.Min(ttl.Ticks, options.SlidingExpiration.Value.Ticks));
+        }
+
+        // Absolute-only: the TTL spans the full window to the absolute instant. Reject windows the NATS
+        // TTL encoding cannot represent (see CacheEntryBinarySerializer.MaxTtlTicks) rather than emitting
+        // an overflowed header.
+        if (ttl.Ticks > CacheEntryBinarySerializer.MaxTtlTicks)
+        {
+            if (options.AbsoluteExpirationRelativeToNow.HasValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(DistributedCacheEntryOptions.AbsoluteExpirationRelativeToNow),
+                    options.AbsoluteExpirationRelativeToNow.Value,
+                    "The relative expiration value is too large.");
+            }
+
+            throw new ArgumentOutOfRangeException(
+                nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
+                options.AbsoluteExpiration!.Value,
+                "The absolute expiration is too far in the future.");
+        }
+
+        return ttl;
     }
 
     internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options) =>
