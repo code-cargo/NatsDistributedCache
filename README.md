@@ -13,6 +13,9 @@ A .NET 8+ library (tested on .NET 8 and .NET 10) for using NATS with `HybridCach
   [automatic bucket creation](#automatic-bucket-creation) (`options.CreateBucketIfNotExists = true`), or
   pre-create the bucket yourself:
     ```csharp
+    using NATS.Client.KeyValueStore;
+    using NATS.Net;
+
     // assuming an INatsConnection natsConnection
     var kvContext = natsConnection.CreateKeyValueStoreContext();
     await kvContext.CreateOrUpdateStoreAsync(

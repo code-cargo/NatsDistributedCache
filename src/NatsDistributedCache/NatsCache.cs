@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
@@ -26,6 +27,10 @@ public class CacheEntry
 /// </summary>
 public partial class NatsCache : IBufferDistributedCache
 {
+    // JetStream "stream not found" error code (JSStreamNotFoundErr), returned by GetStoreAsync when the
+    // KV bucket does not exist.
+    private const int StreamNotFoundErrCode = 10059;
+
     // Compact binary serializer for the CacheEntry envelope (replaces the previous JSON+base64 format).
     private static readonly CacheEntryBinarySerializer CacheEntrySerializer = CacheEntryBinarySerializer.Default;
 
@@ -298,22 +303,23 @@ public partial class NatsCache : IBufferDistributedCache
             ? _keyEncoder.Encode(key)
             : _keyEncoder.Encode($"{_keyPrefix}.{key}");
 
-    // Returns the KV store for the configured bucket, creating it first only if it does not already exist.
-    // An existing (operator-managed) bucket is used as-is and never modified — matching the
+    // Returns the KV store for the configured bucket, creating it only if it does not already exist. An
+    // existing (operator-managed) bucket is used as-is and never modified — matching the
     // CreateBucketIfNotExists contract — so CreateStoreAsync is used rather than CreateOrUpdateStoreAsync.
-    // A create that loses a race with a concurrent creator surfaces as a failure and is retried via the
-    // reset-on-failure path in CreateLazyKvStore.
+    // GetStoreAsync is attempted first (rather than listing every bucket) so this stays O(1) and needs no
+    // stream-list permission; only a genuine "stream not found" triggers creation, and any other error
+    // (connectivity, auth) propagates unchanged. A create that loses a race with a concurrent creator
+    // surfaces as a failure and is retried via the reset-on-failure path in CreateLazyKvStore.
     private async Task<INatsKVStore> GetOrCreateStoreAsync(INatsKVContext kv)
     {
-        await foreach (var bucket in kv.GetBucketNamesAsync().ConfigureAwait(false))
+        try
         {
-            if (bucket == _bucketName)
-            {
-                return await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
-            }
+            return await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
         }
-
-        return await kv.CreateStoreAsync(BuildBucketConfig()).ConfigureAwait(false);
+        catch (NatsJSApiException ex) when (ex.Error.ErrCode == StreamNotFoundErrCode)
+        {
+            return await kv.CreateStoreAsync(BuildBucketConfig()).ConfigureAwait(false);
+        }
     }
 
     private Lazy<Task<INatsKVStore>> CreateLazyKvStore() =>
