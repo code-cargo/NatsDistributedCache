@@ -363,6 +363,15 @@ public partial class NatsCache : IBufferDistributedCache
             var kvEntry = natsResult.Value;
             if (kvEntry.Value == null)
             {
+                // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
+                // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
+                // cache miss and leave the entry in place. It self-heals when the key is next written
+                // (Set overwrites unconditionally), and any TTL'd entry is reaped by NATS. We
+                // deliberately do not evict it (an older node must not delete entries written in a
+                // newer format during a rolling deploy) nor throw (a cache should degrade to a miss,
+                // not fail the caller's operation). Logged at Debug to aid diagnosis without flooding
+                // logs during a JSON->binary migration, when every legacy key transiently lands here.
+                LogUndeserializableEntry(key);
                 return null;
             }
 

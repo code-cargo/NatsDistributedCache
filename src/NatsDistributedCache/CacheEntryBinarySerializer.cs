@@ -113,8 +113,14 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
         long? slidingExpirationTicks = null;
         if ((flags & HasSlidingExpiration) != 0)
         {
-            if (!reader.TryReadLittleEndian(out long slidingTicks))
+            if (!reader.TryReadLittleEndian(out long slidingTicks) ||
+                slidingTicks <= 0 ||
+                slidingTicks > DateTimeOffset.MaxValue.Ticks)
             {
+                // Missing, non-positive, or absurdly large sliding ticks (corrupt entry): fail closed
+                // to a miss, mirroring the absolute-ticks bounds check above. A valid sliding window
+                // is always a positive TimeSpan, and no legitimate window approaches the full
+                // DateTimeOffset tick range, so anything outside (0, MaxValue] is treated as corrupt.
                 return null;
             }
 

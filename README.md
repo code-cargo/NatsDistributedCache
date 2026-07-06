@@ -171,6 +171,20 @@ services.AddSingleton<TimeProvider>(new FakeTimeProvider());
 services.AddNatsDistributedCache(options => options.BucketName = "cache");
 ```
 
+## Cache Entry Format and Upgrades
+
+Cache entries are stored in a compact binary envelope. When an entry cannot be deserialized — because
+it was written by an incompatible release (for example a pre-binary version that used a JSON envelope)
+or is otherwise corrupt — the read is treated as a **cache miss** rather than an error, and logged at
+`Debug`. Because a cache's source of truth lives elsewhere, no manual migration is required:
+
+- Entries with a TTL are reaped automatically by NATS once they expire.
+- Entries without a TTL are left in place and re-populated the next time the key is written (a `Set`
+  overwrites the stored bytes unconditionally), which happens naturally under cache-aside usage.
+
+Upgrading is therefore seamless in a rolling deployment: a node never deletes an entry it cannot read,
+so it cannot discard entries written by a newer node still being rolled out.
+
 ## Additional Resources
 
 * [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0)

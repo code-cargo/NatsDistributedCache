@@ -160,6 +160,43 @@ public class CacheEntryBinarySerializerTests
     }
 
     [Fact]
+    public void Deserialize_OutOfRangeSlidingTicks_ReturnsNull()
+    {
+        // flags = HasSlidingExpiration, followed by an absurd sliding tick value. Before validation
+        // this deserialized "successfully" and yielded a ~10,675-day TTL; it must now fail closed.
+        Assert.Null(Deserialize(SlidingOnly(long.MaxValue)));
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(long.MinValue)]
+    public void Deserialize_NonPositiveSlidingTicks_ReturnsNull(long slidingTicks)
+    {
+        // A valid sliding window is always a positive TimeSpan, so zero/negative ticks are corrupt.
+        Assert.Null(Deserialize(SlidingOnly(slidingTicks)));
+    }
+
+    [Fact]
+    public void Deserialize_TruncatedSlidingField_ReturnsNull()
+    {
+        // Header claims a sliding expiration but only supplies 4 of the required 8 bytes.
+        byte[] truncated = [CacheEntryBinarySerializer.FormatVersion, 0b0000_0010, 1, 2, 3, 4];
+
+        Assert.Null(Deserialize(truncated));
+    }
+
+    [Fact]
+    public void Deserialize_MaxAcceptedSlidingTicks_RoundTrips()
+    {
+        // The upper bound (the full DateTimeOffset tick range) is inclusive and still deserializes.
+        var result = Deserialize(SlidingOnly(DateTimeOffset.MaxValue.Ticks));
+
+        Assert.NotNull(result);
+        Assert.Equal(DateTimeOffset.MaxValue.Ticks, result.SlidingExpirationTicks);
+    }
+
+    [Fact]
     public void Deserialize_MultiSegmentSequence_RoundTrips()
     {
         var entry = new CacheEntry
@@ -193,6 +230,16 @@ public class CacheEntryBinarySerializerTests
         Assert.Equal(local.UtcTicks, result.AbsoluteExpiration!.Value.UtcTicks);
         Assert.Equal(TimeSpan.Zero, result.AbsoluteExpiration.Value.Offset);
         Assert.Equal(local.UtcDateTime, result.AbsoluteExpiration.Value.UtcDateTime);
+    }
+
+    // Builds a sliding-expiration-only entry: [version][flags=HasSlidingExpiration][slidingTicks:8].
+    private static byte[] SlidingOnly(long slidingTicks)
+    {
+        var bytes = new byte[2 + 8];
+        bytes[0] = CacheEntryBinarySerializer.FormatVersion;
+        bytes[1] = 0b0000_0010;
+        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(2), slidingTicks);
+        return bytes;
     }
 
     private static ReadOnlySequence<byte> CreateSegmented(byte[] data, int splitAt)
