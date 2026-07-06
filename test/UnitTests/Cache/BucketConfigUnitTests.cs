@@ -71,6 +71,15 @@ public class BucketConfigUnitTests
         Assert.Equal(BucketName, config.Bucket);
     }
 
+    [Fact]
+    public void BuildBucketConfig_ThrowsClearException_WhenHookReturnsNull()
+    {
+        var cache = CreateCache(o => o.ConfigureBucket = _ => null!);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => cache.BuildBucketConfig());
+        Assert.Contains(nameof(NatsCacheOptions.ConfigureBucket), ex.Message);
+    }
+
     // BuildBucketConfig never touches the connection, so a bare mock is sufficient and no server is needed.
     private static NatsCache CreateCache(Action<NatsCacheOptions>? configure = null)
     {

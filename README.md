@@ -15,7 +15,8 @@ A .NET 8+ library (tested on .NET 8 and .NET 10) for using NATS with `HybridCach
     ```csharp
     // assuming an INatsConnection natsConnection
     var kvContext = natsConnection.CreateKeyValueStoreContext();
-    await kvContext.CreateOrUpdateStoreAsync(new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1) });
+    await kvContext.CreateOrUpdateStoreAsync(
+        new NatsKVConfig("cache") { LimitMarkerTTL = TimeSpan.FromSeconds(1), History = 1 });
     ```
 
 ## Use with `HybridCache`
@@ -117,7 +118,7 @@ await host.RunAsync();
 ## Automatic bucket creation
 
 By default the KV bucket must already exist. Set `CreateBucketIfNotExists = true` to have the cache
-create it (via `CreateOrUpdateStoreAsync`) on first use, with the settings per-key TTL requires —
+create it on first use if it is missing, with the settings per-key TTL requires —
 `History = 1` and a non-zero `LimitMarkerTTL`:
 
 ```csharp
@@ -148,9 +149,10 @@ services.AddNatsDistributedCache(options =>
 
 Notes:
 
-- Creating or updating a bucket requires JetStream stream-management permissions.
-- Because `CreateOrUpdateStoreAsync` is used, an existing bucket is also updated to match the resolved
-  config; immutable properties (for example `Storage`) can't be changed on an existing bucket.
+- Only a missing bucket is created; an existing bucket is used as-is and never modified, so
+  operator-managed settings are preserved. `ConfigureBucket` therefore only applies when the bucket is
+  first created.
+- Creating a bucket requires JetStream stream-management permissions.
 - Overriding `History` (away from `1`) or clearing `LimitMarkerTTL` in `ConfigureBucket` disables
   reliable per-key TTL.
 

@@ -24,23 +24,22 @@ namespace CodeCargo.Nats.DistributedCache
         public string? CacheKeyPrefix { get; set; }
 
         /// <summary>
-        /// When <see langword="true"/>, the <see cref="BucketName"/> KV bucket is created (via
-        /// <c>CreateOrUpdateStoreAsync</c>) the first time the cache is used, if it does not already exist.
-        /// Defaults to <see langword="false"/>, in which case the bucket must be pre-created by the operator.
+        /// When <see langword="true"/>, the <see cref="BucketName"/> KV bucket is created the first time the
+        /// cache is used, if it does not already exist. Defaults to <see langword="false"/>, in which case the
+        /// bucket must be pre-created by the operator.
         /// </summary>
         /// <remarks>
-        /// Because <c>CreateOrUpdateStoreAsync</c> is used, an existing bucket is also updated to match the
-        /// resolved <see cref="NatsKVConfig"/>; immutable properties (for example <c>Storage</c>) cannot be
-        /// changed on an existing bucket and will surface an error on first use. Creating or updating a bucket
-        /// requires JetStream stream-management permissions.
+        /// Only a missing bucket is created; an existing bucket is used as-is and never modified, so
+        /// operator-managed settings are preserved. Creating a bucket requires JetStream stream-management
+        /// permissions.
         /// </remarks>
         public bool CreateBucketIfNotExists { get; set; }
 
         /// <summary>
         /// Optional hook to customize the <see cref="NatsKVConfig"/> used when
-        /// <see cref="CreateBucketIfNotExists"/> is enabled (for example <c>Storage</c>,
-        /// <c>NumberOfReplicas</c>, <c>MaxBytes</c>, or <c>MaxAge</c>). Ignored when
-        /// <see cref="CreateBucketIfNotExists"/> is <see langword="false"/>.
+        /// <see cref="CreateBucketIfNotExists"/> is enabled and a missing bucket is created (for example
+        /// <c>Storage</c>, <c>NumberOfReplicas</c>, <c>MaxBytes</c>, or <c>MaxAge</c>). Ignored when
+        /// <see cref="CreateBucketIfNotExists"/> is <see langword="false"/> or the bucket already exists.
         /// </summary>
         /// <remarks>
         /// <para>

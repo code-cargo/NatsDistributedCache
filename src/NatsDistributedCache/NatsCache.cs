@@ -274,7 +274,9 @@ public partial class NatsCache : IBufferDistributedCache
 
         if (_configureBucket != null)
         {
-            config = _configureBucket(config);
+            config = _configureBucket(config)
+                     ?? throw new InvalidOperationException(
+                         $"{nameof(NatsCacheOptions)}.{nameof(NatsCacheOptions.ConfigureBucket)} must not return null.");
             if (config.Bucket != _bucketName)
             {
                 config = config with { Bucket = _bucketName };
@@ -296,6 +298,24 @@ public partial class NatsCache : IBufferDistributedCache
             ? _keyEncoder.Encode(key)
             : _keyEncoder.Encode($"{_keyPrefix}.{key}");
 
+    // Returns the KV store for the configured bucket, creating it first only if it does not already exist.
+    // An existing (operator-managed) bucket is used as-is and never modified — matching the
+    // CreateBucketIfNotExists contract — so CreateStoreAsync is used rather than CreateOrUpdateStoreAsync.
+    // A create that loses a race with a concurrent creator surfaces as a failure and is retried via the
+    // reset-on-failure path in CreateLazyKvStore.
+    private async Task<INatsKVStore> GetOrCreateStoreAsync(INatsKVContext kv)
+    {
+        await foreach (var bucket in kv.GetBucketNamesAsync().ConfigureAwait(false))
+        {
+            if (bucket == _bucketName)
+            {
+                return await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
+            }
+        }
+
+        return await kv.CreateStoreAsync(BuildBucketConfig()).ConfigureAwait(false);
+    }
+
     private Lazy<Task<INatsKVStore>> CreateLazyKvStore() =>
         new(async () =>
         {
@@ -303,7 +323,7 @@ public partial class NatsCache : IBufferDistributedCache
             {
                 var kv = _natsConnection.CreateKeyValueStoreContext();
                 var store = _createBucketIfNotExists
-                    ? await kv.CreateOrUpdateStoreAsync(BuildBucketConfig()).ConfigureAwait(false)
+                    ? await GetOrCreateStoreAsync(kv).ConfigureAwait(false)
                     : await kv.GetStoreAsync(_bucketName).ConfigureAwait(false);
                 LogConnected(_bucketName);
                 return store;
