@@ -91,4 +91,23 @@ public class TimeExpirationUnitTests : TestBase
             "The sliding expiration value must be positive.",
             TimeSpan.Zero);
     }
+
+    [Fact]
+    public void TooLargeSlidingExpirationThrows()
+    {
+        var key = MethodKey();
+        var value = new byte[1];
+
+        // TimeSpan.MaxValue.Ticks == long.MaxValue, which exceeds the ceiling the serializer can
+        // round-trip; the write path must reject it rather than store an entry that later reads back
+        // as an undeserializable miss.
+        ExceptionAssert.ThrowsArgumentOutOfRange(
+            () =>
+            {
+                Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue));
+            },
+            nameof(DistributedCacheEntryOptions.SlidingExpiration),
+            "The sliding expiration value is too large.",
+            TimeSpan.MaxValue);
+    }
 }

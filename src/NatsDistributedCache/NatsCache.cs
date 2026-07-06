@@ -231,6 +231,18 @@ public partial class NatsCache : IBufferDistributedCache
                 "The sliding expiration value must be positive.");
         }
 
+        // Reject sliding windows the serializer could not round-trip. The read path fails closed above
+        // MaxSlidingExpirationTicks, so accepting a larger value here would silently store an entry that
+        // later reads back as an undeserializable cache miss.
+        if (options.SlidingExpiration.HasValue &&
+            options.SlidingExpiration.Value.Ticks > CacheEntryBinarySerializer.MaxSlidingExpirationTicks)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(DistributedCacheEntryOptions.SlidingExpiration),
+                options.SlidingExpiration.Value,
+                "The sliding expiration value is too large.");
+        }
+
         var absoluteExpiration = ResolveAbsoluteExpiration(options);
         if (!absoluteExpiration.HasValue)
         {

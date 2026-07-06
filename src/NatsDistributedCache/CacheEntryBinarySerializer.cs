@@ -26,6 +26,15 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
     /// </summary>
     internal const byte FormatVersion = 1;
 
+    /// <summary>
+    /// The largest accepted sliding-expiration window, matching the absolute-expiration ceiling: a
+    /// sliding window cannot exceed the full <see cref="DateTimeOffset"/> tick range. Enforced on both
+    /// the write path (<c>NatsCache.GetTtl</c> throws) and the read path here (fail closed) so that any
+    /// value which can be serialized can also be deserialized — no legitimately written entry becomes
+    /// an undeserializable miss.
+    /// </summary>
+    internal static readonly long MaxSlidingExpirationTicks = DateTimeOffset.MaxValue.Ticks;
+
     private const byte HasAbsoluteExpiration = 0b0000_0001;
     private const byte HasSlidingExpiration = 0b0000_0010;
     private const byte KnownFlags = HasAbsoluteExpiration | HasSlidingExpiration;
@@ -115,12 +124,12 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
         {
             if (!reader.TryReadLittleEndian(out long slidingTicks) ||
                 slidingTicks <= 0 ||
-                slidingTicks > DateTimeOffset.MaxValue.Ticks)
+                slidingTicks > MaxSlidingExpirationTicks)
             {
-                // Missing, non-positive, or absurdly large sliding ticks (corrupt entry): fail closed
-                // to a miss, mirroring the absolute-ticks bounds check above. A valid sliding window
-                // is always a positive TimeSpan, and no legitimate window approaches the full
-                // DateTimeOffset tick range, so anything outside (0, MaxValue] is treated as corrupt.
+                // Missing, non-positive, or out-of-range sliding ticks (corrupt entry): fail closed to
+                // a miss, mirroring the absolute-ticks bounds check above. A valid sliding window is
+                // always a positive TimeSpan within (0, MaxSlidingExpirationTicks]; the write path
+                // enforces the same ceiling, so any legitimately written value round-trips.
                 return null;
             }
 
