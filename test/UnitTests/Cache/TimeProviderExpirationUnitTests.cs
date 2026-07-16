@@ -119,4 +119,39 @@ public class TimeProviderExpirationUnitTests : TestBase
 
         Assert.Equal(TimeSpan.FromMinutes(10), ttl);
     }
+
+    // DateTimeOffset.MaxValue / TimeSpan.MaxValue mean "cache forever": no TTL, not an out-of-range throw.
+    [Fact]
+    public void GetTtlTreatsMaxAbsoluteInstantAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTimeOffset.MaxValue)));
+
+    [Fact]
+    public void GetTtlTreatsMaxRelativeExpirationAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.MaxValue)));
+
+    [Fact]
+    public void GetTtlTreatsMaxSlidingExpirationAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue)));
+
+    [Fact]
+    public void CreateCacheEntryTreatsMaxValueSlidingAsNoExpiration()
+    {
+        var entry = Cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue));
+
+        Assert.Null(entry.SlidingExpirationTicks);
+        Assert.Null(entry.AbsoluteExpiration);
+    }
+
+    [Fact]
+    public void CreateCacheEntryTreatsMaxValueAbsoluteAsNoExpiration()
+    {
+        var entry = Cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTimeOffset.MaxValue));
+
+        Assert.Null(entry.AbsoluteExpiration);
+        Assert.Null(entry.SlidingExpirationTicks);
+    }
 }

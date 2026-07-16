@@ -98,17 +98,18 @@ public class TimeExpirationUnitTests : TestBase
         var key = MethodKey();
         var value = new byte[1];
 
-        // TimeSpan.MaxValue is far beyond the ceiling the NATS TTL encoding supports (int.MaxValue
-        // seconds), so the write path must reject it rather than store an entry that later reads back
+        // A window beyond the NATS TTL encoding ceiling (~68 years) but short of the TimeSpan.MaxValue
+        // "never expire" sentinel must be rejected rather than stored as an entry that later reads back
         // as an undeserializable miss or emits an overflowed TTL header.
+        var sliding = TimeSpan.FromDays(365 * 100);
         ExceptionAssert.ThrowsArgumentOutOfRange(
             () =>
             {
-                Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue));
+                Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(sliding));
             },
             nameof(DistributedCacheEntryOptions.SlidingExpiration),
             "The sliding expiration value is too large.",
-            TimeSpan.MaxValue);
+            sliding);
     }
 
     [Fact]

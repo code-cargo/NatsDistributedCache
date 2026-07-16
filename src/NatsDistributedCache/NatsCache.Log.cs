@@ -16,7 +16,7 @@ public partial class NatsCache
     private void LogUndeserializableEntry(string key) =>
         _logger.LogDebug(
             EventIds.UndeserializableEntry,
-            "Cache entry for key {key} could not be deserialized (legacy or corrupt format); returning a cache miss",
+            "Cache entry for key {Key} could not be deserialized (legacy or corrupt format); returning a cache miss",
             key);
 
     private static class EventIds

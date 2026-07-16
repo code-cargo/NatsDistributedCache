@@ -37,6 +37,11 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
     /// </summary>
     internal const long MaxTtlTicks = int.MaxValue * TimeSpan.TicksPerSecond;
 
+    /// <summary>
+    /// <see cref="MaxTtlTicks"/> as a <see cref="TimeSpan"/>, for range-check exception messages.
+    /// </summary>
+    internal static readonly TimeSpan MaxTtl = TimeSpan.FromTicks(MaxTtlTicks);
+
     private const byte HasAbsoluteExpiration = 0b0000_0001;
     private const byte HasSlidingExpiration = 0b0000_0010;
     private const byte KnownFlags = HasAbsoluteExpiration | HasSlidingExpiration;
