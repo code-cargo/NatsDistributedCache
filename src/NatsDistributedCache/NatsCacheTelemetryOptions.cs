@@ -4,7 +4,7 @@ namespace CodeCargo.Nats.DistributedCache;
 /// Telemetry configuration for <see cref="NatsCache"/>.
 /// </summary>
 /// <remarks>
-/// Telemetry is inert until a listener subscribes to the meter or activity source named by
+/// No telemetry is recorded until a listener subscribes to the meter or activity source named by
 /// <see cref="NatsCacheTelemetryNames"/>; these options only tune what is emitted once something is
 /// listening, they are not the opt-in switch.
 /// </remarks>

@@ -188,8 +188,10 @@ so it cannot discard entries written by a newer node still being rolled out.
 ## Telemetry
 
 Metrics and traces are emitted through `System.Diagnostics.Metrics` and `System.Diagnostics.ActivitySource`.
-**This package takes no dependency on OpenTelemetry.** Nothing is measured, timed, or allocated until a
-listener subscribes, so registering the names below is the opt-in:
+**This package takes no dependency on OpenTelemetry.** No measurement is recorded, no duration is timed,
+and no per-operation allocation occurs until a listener subscribes, so registering the names below is the
+opt-in. (Each cache instance does build its meter, two instruments, and four span-name strings once on
+first use, whether or not anything is listening — a fixed setup cost, not a per-operation one.)
 
 ```csharp
 builder.Services.AddOpenTelemetry()

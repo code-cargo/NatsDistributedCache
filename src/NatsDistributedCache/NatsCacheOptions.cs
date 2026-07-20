@@ -58,9 +58,9 @@ namespace CodeCargo.Nats.DistributedCache
         public Func<NatsKVConfig, NatsKVConfig>? ConfigureBucketOnCreate { get; set; }
 
         /// <summary>
-        /// Telemetry configuration. Metrics and traces are inert until a listener subscribes to the meter or
-        /// activity source named by <see cref="NatsCacheTelemetryNames"/>, so these options tune what is
-        /// emitted rather than whether telemetry is enabled.
+        /// Telemetry configuration. No metrics or traces are recorded until a listener subscribes to the
+        /// meter or activity source named by <see cref="NatsCacheTelemetryNames"/>, so these options tune
+        /// what is emitted rather than whether telemetry is enabled.
         /// </summary>
         /// <remarks>
         /// Get-only so it can never be null: configure it in place

@@ -42,9 +42,9 @@ public static class DistributedCacheStartup
                 natsBuilder.ConfigureOptions(optsBuilder => optsBuilder.Configure(opts =>
                     opts.Opts = opts.Opts with { Url = natsConnectionString })));
 
-            // The cache emits metrics and traces via System.Diagnostics; they are inert until a listener
-            // subscribes. To collect them, add the OpenTelemetry packages and register the names (see the
-            // Telemetry section of the README):
+            // The cache emits metrics and traces via System.Diagnostics; it records nothing and allocates
+            // nothing per operation until a listener subscribes. To collect them, add the OpenTelemetry
+            // packages and register the names (see the Telemetry section of the README):
             //     services.AddOpenTelemetry()
             //         .WithMetrics(m => m.AddMeter(NatsCacheTelemetryNames.MeterName))
             //         .WithTracing(t => t.AddSource(NatsCacheTelemetryNames.ActivitySourceName));

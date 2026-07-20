@@ -6,8 +6,9 @@ namespace CodeCargo.Nats.DistributedCache;
 /// <remarks>
 /// <para>
 /// Telemetry is emitted through <c>System.Diagnostics.Metrics</c> and <c>System.Diagnostics.ActivitySource</c>
-/// only; this package takes no dependency on OpenTelemetry. Nothing is measured, timed, or allocated until a
-/// listener subscribes, so registering these names is the opt-in:
+/// only; this package takes no dependency on OpenTelemetry. No measurement is recorded, no duration is timed,
+/// and no per-operation allocation occurs until a listener subscribes, so registering these names is the
+/// opt-in:
 /// </para>
 /// <code>
 /// builder.Services.AddOpenTelemetry()
