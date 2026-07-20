@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" Version="13.4.6" />
-    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="2.8.2" />
+    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="3.0.1" />
   </ItemGroup>
 
   <ItemGroup>

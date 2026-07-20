@@ -31,7 +31,7 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
-    <PackageReference Include="NATS.Client.KeyValueStore" Version="2.8.2" />
+    <PackageReference Include="NATS.Client.KeyValueStore" Version="3.0.1" />
     <!-- Meter, Histogram, ActivitySource, TagList, and IMeterFactory. In-box on net10.0 and arriving
          transitively via Logging.Abstractions on net8.0, but referenced explicitly because the library
          uses these types directly. Adds no new nodes to the dependency graph. -->

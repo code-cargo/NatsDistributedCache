@@ -115,8 +115,7 @@ public partial class NatsCache : IBufferDistributedCache
         {
             var kvStore = await GetKvStore().ConfigureAwait(false);
 
-            // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-            await ((NatsKVStore)kvStore)
+            await kvStore
                 .PutWithTtlAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
@@ -532,7 +531,6 @@ public partial class NatsCache : IBufferDistributedCache
                 if (ttl > TimeSpan.Zero)
                 {
                     // Use optimistic concurrency control with the last revision
-                    // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
                     await kvStore.UpdateWithTtlAsync(
                         encodedKey,
                         kvEntry.Value,

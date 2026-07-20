@@ -6,6 +6,16 @@ using NATS.Client.KeyValueStore;
 
 namespace CodeCargo.Nats.DistributedCache;
 
+/// <summary>
+/// Per-key TTL support for NATS KV put and update operations.
+/// </summary>
+/// <remarks>
+/// These publish to the KV subject directly with a <c>Nats-TTL</c> header because the client's own KV API
+/// still has no TTL overload for put or update. As of NATS.Net 3.0.1 native TTL covers only
+/// <c>CreateAsync</c>, <c>TryCreateAsync</c> and <c>PurgeAsync</c>; the update-with-TTL work from
+/// nats-io/nats.net#852 was backed out. Re-check on future NATS.Net upgrades — once
+/// <c>PutAsync</c>/<c>UpdateAsync</c> gain TTL overloads, this class can be deleted in favor of them.
+/// </remarks>
 public static class NatsExtensions
 {
     private const string NatsExpectedLastSubjectSequence = "Nats-Expected-Last-Subject-Sequence";
