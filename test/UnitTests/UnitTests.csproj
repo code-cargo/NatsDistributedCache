@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Diagnostics supplies AddMetrics() (the real IMeterFactory registration); Diagnostics.Testing
+         supplies MetricCollector. Diagnostics.Testing brings only .Abstractions, so both are needed. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.1.0" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.1.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageReference Include="Moq" Version="4.20.72" />

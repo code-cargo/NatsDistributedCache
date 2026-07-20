@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,9 +40,16 @@ public static class NatsDistributedCacheExtensions
             var keyEncoder = sp.GetService<INatsCacheKeyEncoder>();
             var timeProvider = sp.GetService<TimeProvider>();
 
+            // GetService, not GetRequiredService: IMeterFactory is registered by AddMetrics(), which the
+            // Generic Host and AddOpenTelemetry().WithMetrics(...) call for you but a bare ServiceCollection
+            // does not. Requiring it would break every non-Host consumer; NatsCache falls back to a
+            // process-wide static Meter of the same name when this is null.
+            var meterFactory = sp.GetService<IMeterFactory>();
+
             return new NatsCache(optionsAccessor, natsConnection, logger: logger, keyEncoder: keyEncoder)
             {
                 TimeProvider = timeProvider ?? TimeProvider.System,
+                MeterFactory = meterFactory,
             };
         });
 

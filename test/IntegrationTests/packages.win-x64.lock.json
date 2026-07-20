@@ -43,6 +43,23 @@
           "System.IO.Hashing": "10.0.8"
         }
       },
+      "Microsoft.Extensions.Diagnostics.Testing": {
+        "type": "Direct",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "TEQTZklstvSx7/W+qom54+NlExkJAIOXeO3OMt/6zBAtBf14G+X3/vVUU1SyjNiNXiaOkYy/MGuyVXHG7/lX4Q==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "10.0.1",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "10.0.1",
+          "Microsoft.Extensions.Telemetry.Abstractions": "10.1.0"
+        }
+      },
+      "Microsoft.Extensions.TimeProvider.Testing": {
+        "type": "Direct",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "wH/CohN2yvYlpyPptNwWVZxlIQ8CkFvcv1eOEZTi/y8FhqVeISLbrraaW0qvVtXRKEeO0EyapNCZzj4HtdRGRw=="
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.7.0, )",

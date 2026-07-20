@@ -494,7 +494,8 @@
           "Microsoft.Extensions.Caching.Abstractions": "[10.0.9, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.9, )",
           "Microsoft.Extensions.Options": "[10.0.9, )",
-          "NATS.Client.KeyValueStore": "[2.8.2, )"
+          "NATS.Client.KeyValueStore": "[2.8.2, )",
+          "System.Diagnostics.DiagnosticSource": "[10.0.9, )"
         }
       }
     }

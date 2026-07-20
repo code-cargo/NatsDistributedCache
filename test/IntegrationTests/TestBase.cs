@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using CodeCargo.Nats.DistributedCache.TestUtils;
 using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
@@ -38,6 +39,11 @@ public abstract class TestBase : IAsyncLifetime
             builder.AddXUnitTestOutput(output);
         });
 
+        // Registers IMeterFactory so each test's ServiceProvider gets its own Meter instance. Without this
+        // the cache falls back to the process-wide static meter and concurrent tests would see each
+        // other's measurements.
+        services.AddMetrics();
+
         // Configure the service collection with NATS connection
         fixture.ConfigureServices(services);
 
@@ -68,6 +74,11 @@ public abstract class TestBase : IAsyncLifetime
     /// Gets the cache from the service provider
     /// </summary>
     protected HybridCache HybridCache => ServiceProvider.GetRequiredService<HybridCache>();
+
+    /// <summary>
+    /// Gets the meter factory scoping this test's cache instruments
+    /// </summary>
+    protected IMeterFactory MeterFactory => ServiceProvider.GetRequiredService<IMeterFactory>();
 
     /// <summary>
     /// Purge stream before test run
