@@ -95,4 +95,63 @@ public class TimeProviderExpirationUnitTests : TestBase
 
         Assert.Equal(TimeSpan.FromMinutes(2), ttl);
     }
+
+    [Fact]
+    public void GetTtlAcceptsMaxSlidingExpiration()
+    {
+        // The ceiling itself is valid: it round-trips through both the serializer and the
+        // second-granularity NATS TTL encoding without overflowing.
+        var max = TimeSpan.FromTicks(CacheEntryBinarySerializer.MaxTtlTicks);
+
+        var ttl = Cache.GetTtl(new DistributedCacheEntryOptions().SetSlidingExpiration(max));
+
+        Assert.Equal(max, ttl);
+    }
+
+    [Fact]
+    public void GetTtlWithFarAbsoluteAndSlidingReturnsSliding()
+    {
+        // A far-future absolute paired with a small sliding must not be rejected: the effective TTL is
+        // the (encodable) sliding window, not the huge absolute one, so the ceiling check is not tripped.
+        var ttl = Cache.GetTtl(new DistributedCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromDays(365 * 100))
+            .SetSlidingExpiration(TimeSpan.FromMinutes(10)));
+
+        Assert.Equal(TimeSpan.FromMinutes(10), ttl);
+    }
+
+    // DateTimeOffset.MaxValue / TimeSpan.MaxValue mean "cache forever": no TTL, not an out-of-range throw.
+    [Fact]
+    public void GetTtlTreatsMaxAbsoluteInstantAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTimeOffset.MaxValue)));
+
+    [Fact]
+    public void GetTtlTreatsMaxRelativeExpirationAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.MaxValue)));
+
+    [Fact]
+    public void GetTtlTreatsMaxSlidingExpirationAsNoExpiration() =>
+        Assert.Null(Cache.GetTtl(new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue)));
+
+    [Fact]
+    public void CreateCacheEntryTreatsMaxValueSlidingAsNoExpiration()
+    {
+        var entry = Cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.MaxValue));
+
+        Assert.Null(entry.SlidingExpirationTicks);
+        Assert.Null(entry.AbsoluteExpiration);
+    }
+
+    [Fact]
+    public void CreateCacheEntryTreatsMaxValueAbsoluteAsNoExpiration()
+    {
+        var entry = Cache.CreateCacheEntry(
+            new byte[1],
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTimeOffset.MaxValue));
+
+        Assert.Null(entry.AbsoluteExpiration);
+        Assert.Null(entry.SlidingExpirationTicks);
+    }
 }

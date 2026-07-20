@@ -91,4 +91,61 @@ public class TimeExpirationUnitTests : TestBase
             "The sliding expiration value must be positive.",
             TimeSpan.Zero);
     }
+
+    [Fact]
+    public void TooLargeSlidingExpirationThrows()
+    {
+        var key = MethodKey();
+        var value = new byte[1];
+
+        // A window beyond the NATS TTL encoding ceiling (~68 years) but short of the TimeSpan.MaxValue
+        // "never expire" sentinel must be rejected rather than stored as an entry that later reads back
+        // as an undeserializable miss or emits an overflowed TTL header.
+        var sliding = TimeSpan.FromDays(365 * 100);
+        ExceptionAssert.ThrowsArgumentOutOfRange(
+            () =>
+            {
+                Cache.Set(key, value, new DistributedCacheEntryOptions().SetSlidingExpiration(sliding));
+            },
+            nameof(DistributedCacheEntryOptions.SlidingExpiration),
+            "The sliding expiration value is too large.",
+            sliding);
+    }
+
+    [Fact]
+    public void TooFarRelativeExpirationThrows()
+    {
+        var key = MethodKey();
+        var value = new byte[1];
+
+        // A relative expiration beyond the NATS TTL encoding limit (int.MaxValue seconds, ~68 years)
+        // would overflow the (int) cast in ToTtlString, so it must be rejected on write.
+        var relative = TimeSpan.FromDays(365 * 100);
+        ExceptionAssert.ThrowsArgumentOutOfRange(
+            () =>
+            {
+                Cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(relative));
+            },
+            nameof(DistributedCacheEntryOptions.AbsoluteExpirationRelativeToNow),
+            "The relative expiration value is too large.",
+            relative);
+    }
+
+    [Fact]
+    public void TooFarAbsoluteExpirationThrows()
+    {
+        var key = MethodKey();
+        var value = new byte[1];
+
+        // Same limit for an absolute instant: more than ~68 years out overflows the TTL header.
+        var absolute = TimeProvider.GetUtcNow().AddYears(100);
+        ExceptionAssert.ThrowsArgumentOutOfRange(
+            () =>
+            {
+                Cache.Set(key, value, new DistributedCacheEntryOptions().SetAbsoluteExpiration(absolute));
+            },
+            nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
+            "The absolute expiration is too far in the future.",
+            absolute);
+    }
 }

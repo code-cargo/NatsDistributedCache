@@ -206,48 +206,89 @@ public partial class NatsCache : IBufferDistributedCache
 
     internal TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
-        if (options.AbsoluteExpiration.HasValue && options.AbsoluteExpiration.Value <= TimeProvider.GetUtcNow())
+        // Maximum-value sentinels mean "never expire": normalize them to no expiration so they are not
+        // rejected as out-of-range below. Callers commonly use DateTimeOffset.MaxValue / TimeSpan.MaxValue
+        // as a "cache forever" idiom, which is equivalent to omitting expiration entirely.
+        var absoluteExpiration = EffectiveAbsoluteExpiration(options);
+        var relativeToNow = EffectiveRelativeToNow(options);
+        var slidingExpiration = EffectiveSlidingExpiration(options);
+
+        if (absoluteExpiration.HasValue && absoluteExpiration.Value <= TimeProvider.GetUtcNow())
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
-                options.AbsoluteExpiration.Value,
+                absoluteExpiration.Value,
                 "The absolute expiration value must be in the future.");
         }
 
-        if (options.AbsoluteExpirationRelativeToNow.HasValue &&
-            options.AbsoluteExpirationRelativeToNow.Value <= TimeSpan.Zero)
+        if (relativeToNow.HasValue && relativeToNow.Value <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.AbsoluteExpirationRelativeToNow),
-                options.AbsoluteExpirationRelativeToNow.Value,
+                relativeToNow.Value,
                 "The relative expiration value must be positive.");
         }
 
-        if (options.SlidingExpiration.HasValue && options.SlidingExpiration.Value <= TimeSpan.Zero)
+        if (slidingExpiration.HasValue && slidingExpiration.Value <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DistributedCacheEntryOptions.SlidingExpiration),
-                options.SlidingExpiration.Value,
+                slidingExpiration.Value,
                 "The sliding expiration value must be positive.");
         }
 
-        var absoluteExpiration = ResolveAbsoluteExpiration(options);
-        if (!absoluteExpiration.HasValue)
+        // Reject sliding windows the serializer/TTL encoding could not round-trip. The read path fails
+        // closed above MaxTtlTicks, so accepting a larger value here would silently store an entry that
+        // later reads back as an undeserializable cache miss.
+        if (slidingExpiration.HasValue &&
+            slidingExpiration.Value.Ticks > CacheEntryBinarySerializer.MaxTtlTicks)
         {
-            return options.SlidingExpiration;
+            throw new ArgumentOutOfRangeException(
+                nameof(DistributedCacheEntryOptions.SlidingExpiration),
+                slidingExpiration.Value,
+                $"The sliding expiration value is too large. The maximum is {CacheEntryBinarySerializer.MaxTtl}.");
         }
 
-        var ttl = absoluteExpiration.Value - TimeProvider.GetUtcNow();
+        var resolvedAbsolute = ResolveAbsoluteExpiration(options);
+        if (!resolvedAbsolute.HasValue)
+        {
+            return slidingExpiration;
+        }
+
+        var ttl = resolvedAbsolute.Value - TimeProvider.GetUtcNow();
         if (ttl.TotalMilliseconds <= 0)
         {
             // Value is in the past, remove it
             return TimeSpan.Zero;
         }
 
-        // If there's also a sliding expiration, use the minimum of the two
-        return options.SlidingExpiration.HasValue
-            ? TimeSpan.FromTicks(Math.Min(ttl.Ticks, options.SlidingExpiration.Value.Ticks))
-            : ttl;
+        // If there's also a sliding expiration, use the minimum of the two. Sliding is bounded to
+        // MaxTtlTicks above, so the minimum is always within the encodable range.
+        if (slidingExpiration.HasValue)
+        {
+            return TimeSpan.FromTicks(Math.Min(ttl.Ticks, slidingExpiration.Value.Ticks));
+        }
+
+        // Absolute-only: the TTL spans the full window to the absolute instant. Reject windows the NATS
+        // TTL encoding cannot represent (see CacheEntryBinarySerializer.MaxTtlTicks) rather than emitting
+        // an overflowed header.
+        if (ttl.Ticks > CacheEntryBinarySerializer.MaxTtlTicks)
+        {
+            if (relativeToNow.HasValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(DistributedCacheEntryOptions.AbsoluteExpirationRelativeToNow),
+                    relativeToNow.Value,
+                    $"The relative expiration value is too large. The maximum is {CacheEntryBinarySerializer.MaxTtl}.");
+            }
+
+            throw new ArgumentOutOfRangeException(
+                nameof(DistributedCacheEntryOptions.AbsoluteExpiration),
+                absoluteExpiration!.Value,
+                $"The absolute expiration is too far in the future. The maximum window is {CacheEntryBinarySerializer.MaxTtl}.");
+        }
+
+        return ttl;
     }
 
     internal CacheEntry CreateCacheEntry(byte[] value, DistributedCacheEntryOptions options) =>
@@ -255,7 +296,7 @@ public partial class NatsCache : IBufferDistributedCache
         {
             Data = value,
             AbsoluteExpiration = ResolveAbsoluteExpiration(options),
-            SlidingExpirationTicks = options.SlidingExpiration?.Ticks
+            SlidingExpirationTicks = EffectiveSlidingExpiration(options)?.Ticks
         };
 
     // An entry is absolutely expired once the clock reaches its absolute expiration instant. The
@@ -291,12 +332,27 @@ public partial class NatsCache : IBufferDistributedCache
         return config;
     }
 
+    // "Never expire" sentinels: a DateTimeOffset.MaxValue absolute instant or a TimeSpan.MaxValue window
+    // is normalized to no expiration, so it is not rejected as out-of-range and the entry lives forever.
+    private static DateTimeOffset? EffectiveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
+        options.AbsoluteExpiration == DateTimeOffset.MaxValue ? null : options.AbsoluteExpiration;
+
+    private static TimeSpan? EffectiveRelativeToNow(DistributedCacheEntryOptions options) =>
+        options.AbsoluteExpirationRelativeToNow == TimeSpan.MaxValue ? null : options.AbsoluteExpirationRelativeToNow;
+
+    private static TimeSpan? EffectiveSlidingExpiration(DistributedCacheEntryOptions options) =>
+        options.SlidingExpiration == TimeSpan.MaxValue ? null : options.SlidingExpiration;
+
     // Resolves the effective absolute expiration instant: a relative expiration (offset from the
     // current clock) takes precedence over an explicit absolute expiration when both are set.
-    private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options) =>
-        options.AbsoluteExpirationRelativeToNow.HasValue
-            ? TimeProvider.GetUtcNow().Add(options.AbsoluteExpirationRelativeToNow.Value)
-            : options.AbsoluteExpiration;
+    // Maximum-value sentinels are treated as "no expiration" (see the Effective* helpers).
+    private DateTimeOffset? ResolveAbsoluteExpiration(DistributedCacheEntryOptions options)
+    {
+        var relativeToNow = EffectiveRelativeToNow(options);
+        return relativeToNow.HasValue
+            ? TimeProvider.GetUtcNow().Add(relativeToNow.Value)
+            : EffectiveAbsoluteExpiration(options);
+    }
 
     private string GetEncodedKey(string key) =>
         string.IsNullOrEmpty(_keyPrefix)
@@ -363,6 +419,15 @@ public partial class NatsCache : IBufferDistributedCache
             var kvEntry = natsResult.Value;
             if (kvEntry.Value == null)
             {
+                // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
+                // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
+                // cache miss and leave the entry in place. It self-heals when the key is next written
+                // (Set overwrites unconditionally), and any TTL'd entry is reaped by NATS. We
+                // deliberately do not evict it (an older node must not delete entries written in a
+                // newer format during a rolling deploy) nor throw (a cache should degrade to a miss,
+                // not fail the caller's operation). Logged at Debug to aid diagnosis without flooding
+                // logs during a JSON->binary migration, when every legacy key transiently lands here.
+                LogUndeserializableEntry(key);
                 return null;
             }
 

@@ -26,6 +26,22 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
     /// </summary>
     internal const byte FormatVersion = 1;
 
+    /// <summary>
+    /// The largest expiration window the cache can represent, in ticks. NATS message TTLs are encoded as
+    /// whole seconds in a 32-bit field (<c>(int)ttl.TotalSeconds</c> in <c>NatsExtensions.ToTtlString</c>),
+    /// so a window beyond <see cref="int.MaxValue"/> seconds (~68 years) would overflow the cast and emit
+    /// an invalid TTL header. <c>NatsCache.GetTtl</c> rejects sliding and absolute expirations that exceed
+    /// this on write, and the deserializer fails closed on stored sliding ticks above it, so every
+    /// accepted value round-trips end to end and no legitimately written entry becomes an
+    /// undeserializable miss.
+    /// </summary>
+    internal const long MaxTtlTicks = int.MaxValue * TimeSpan.TicksPerSecond;
+
+    /// <summary>
+    /// <see cref="MaxTtlTicks"/> as a <see cref="TimeSpan"/>, for range-check exception messages.
+    /// </summary>
+    internal static readonly TimeSpan MaxTtl = TimeSpan.FromTicks(MaxTtlTicks);
+
     private const byte HasAbsoluteExpiration = 0b0000_0001;
     private const byte HasSlidingExpiration = 0b0000_0010;
     private const byte KnownFlags = HasAbsoluteExpiration | HasSlidingExpiration;
@@ -113,8 +129,14 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
         long? slidingExpirationTicks = null;
         if ((flags & HasSlidingExpiration) != 0)
         {
-            if (!reader.TryReadLittleEndian(out long slidingTicks))
+            if (!reader.TryReadLittleEndian(out long slidingTicks) ||
+                slidingTicks <= 0 ||
+                slidingTicks > MaxTtlTicks)
             {
+                // Missing, non-positive, or out-of-range sliding ticks (corrupt entry): fail closed to
+                // a miss, like the absolute-ticks bounds check above. A valid sliding window is always
+                // a positive TimeSpan within (0, MaxTtlTicks]; the write path enforces the same ceiling,
+                // so any legitimately written value round-trips.
                 return null;
             }
 

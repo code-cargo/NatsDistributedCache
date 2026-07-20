@@ -159,6 +159,46 @@ public class CacheEntryBinarySerializerTests
         Assert.Null(Deserialize(bytes));
     }
 
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(CacheEntryBinarySerializer.MaxTtlTicks + 1)]
+    public void Deserialize_OutOfRangeSlidingTicks_ReturnsNull(long slidingTicks)
+    {
+        // Before validation an absurd value deserialized "successfully": TimeSpan.FromTicks(long.MaxValue)
+        // is ~10,675,199 days (~29,000 years). Anything above the ceiling must now fail closed.
+        Assert.Null(Deserialize(SlidingOnly(slidingTicks)));
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(long.MinValue)]
+    public void Deserialize_NonPositiveSlidingTicks_ReturnsNull(long slidingTicks)
+    {
+        // A valid sliding window is always a positive TimeSpan, so zero/negative ticks are corrupt.
+        Assert.Null(Deserialize(SlidingOnly(slidingTicks)));
+    }
+
+    [Fact]
+    public void Deserialize_TruncatedSlidingField_ReturnsNull()
+    {
+        // Header claims a sliding expiration but only supplies 4 of the required 8 bytes.
+        byte[] truncated = [CacheEntryBinarySerializer.FormatVersion, 0b0000_0010, 1, 2, 3, 4];
+
+        Assert.Null(Deserialize(truncated));
+    }
+
+    [Fact]
+    public void Deserialize_MaxAcceptedSlidingTicks_RoundTrips()
+    {
+        // The upper bound (int.MaxValue seconds, the largest window the NATS TTL encoding supports) is
+        // inclusive and still deserializes.
+        var result = Deserialize(SlidingOnly(CacheEntryBinarySerializer.MaxTtlTicks));
+
+        Assert.NotNull(result);
+        Assert.Equal(CacheEntryBinarySerializer.MaxTtlTicks, result.SlidingExpirationTicks);
+    }
+
     [Fact]
     public void Deserialize_MultiSegmentSequence_RoundTrips()
     {
@@ -193,6 +233,16 @@ public class CacheEntryBinarySerializerTests
         Assert.Equal(local.UtcTicks, result.AbsoluteExpiration!.Value.UtcTicks);
         Assert.Equal(TimeSpan.Zero, result.AbsoluteExpiration.Value.Offset);
         Assert.Equal(local.UtcDateTime, result.AbsoluteExpiration.Value.UtcDateTime);
+    }
+
+    // Builds a sliding-expiration-only entry: [version][flags=HasSlidingExpiration][slidingTicks:8].
+    private static byte[] SlidingOnly(long slidingTicks)
+    {
+        var bytes = new byte[2 + 8];
+        bytes[0] = CacheEntryBinarySerializer.FormatVersion;
+        bytes[1] = 0b0000_0010;
+        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(2), slidingTicks);
+        return bytes;
     }
 
     private static ReadOnlySequence<byte> CreateSegmented(byte[] data, int splitAt)

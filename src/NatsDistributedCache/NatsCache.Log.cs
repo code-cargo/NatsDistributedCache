@@ -13,9 +13,16 @@ public partial class NatsCache
     private void LogSwallowedException(Exception exception) =>
         _logger.LogWarning(EventIds.Exception, exception, "NATS cache read failed in TryGetAsync; returning a cache miss");
 
+    private void LogUndeserializableEntry(string key) =>
+        _logger.LogDebug(
+            EventIds.UndeserializableEntry,
+            "Cache entry for key {Key} could not be deserialized (legacy or corrupt format); returning a cache miss",
+            key);
+
     private static class EventIds
     {
         public static readonly EventId Connected = new(100, nameof(Connected));
         public static readonly EventId Exception = new(101, nameof(Exception));
+        public static readonly EventId UndeserializableEntry = new(102, nameof(UndeserializableEntry));
     }
 }
