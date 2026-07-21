@@ -233,15 +233,23 @@ two caches in the same process distinguishable. Spans carry the same tags, plus 
 
 ### Example queries
 
+The series names below assume the default Prometheus exporter, which appends the unit and a `_total`
+suffix (`add_metric_suffixes = true`): the histogram's unit `s` makes it `..._seconds_bucket` /
+`..._seconds_count`, and the misses counter becomes `nats_cache_misses_total`. If you set
+`add_metric_suffixes = false`, drop the `_seconds` infix and the `_total` suffix.
+
 ```promql
 # Hit ratio. Both selectors must filter on the same operation — leaving it off the numerator would
 # fold refresh hits into a denominator that counts only gets, producing a ratio above 1.
-sum(rate(nats_cache_operation_duration_count{nats_cache_operation="get",nats_cache_result="hit"}[5m]))
-  / sum(rate(nats_cache_operation_duration_count{nats_cache_operation="get"}[5m]))
+sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get",nats_cache_result="hit"}[5m]))
+  / sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get"}[5m]))
 
 # p99 latency by operation
 histogram_quantile(0.99, sum by (le, nats_cache_operation)
-  (rate(nats_cache_operation_duration_bucket[5m])))
+  (rate(nats_cache_operation_duration_seconds_bucket[5m])))
+
+# Miss rate by reason
+sum by (nats_cache_miss_reason) (rate(nats_cache_misses_total[5m]))
 ```
 
 ### Notes
