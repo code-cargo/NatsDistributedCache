@@ -185,7 +185,121 @@ or is otherwise corrupt — the read is treated as a **cache miss** rather than 
 Upgrading is therefore seamless in a rolling deployment: a node never deletes an entry it cannot read,
 so it cannot discard entries written by a newer node still being rolled out.
 
+## Telemetry
+
+Metrics and traces are emitted through `System.Diagnostics.Metrics` and `System.Diagnostics.ActivitySource`.
+**This package takes no dependency on OpenTelemetry.** No measurement is recorded, no duration is timed,
+and no per-operation allocation occurs until a listener subscribes, so registering the names below is the
+opt-in. (Each cache instance does build its meter, two instruments, and four span-name strings once on
+first use, whether or not anything is listening — a fixed setup cost, not a per-operation one.)
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(NatsCacheTelemetryNames.MeterName))
+    .WithTracing(tracing => tracing.AddSource(NatsCacheTelemetryNames.ActivitySourceName));
+```
+
+Both resolve to `CodeCargo.Nats.DistributedCache`. They are compile-time constants, so referencing them
+does not initialize the meter.
+
+### Instruments
+
+| Name | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `nats.cache.operation.duration` | Histogram&lt;double&gt; | `s` | Duration of cache operations |
+| `nats.cache.misses` | Counter&lt;long&gt; | `{miss}` | Read misses, by reason |
+
+There is no separate hits/operations counter: the histogram's count already gives operation rate, hit
+ratio, and error rate via the `nats.cache.result` tag.
+
+| Tag | Applies to | Values |
+| --- | --- | --- |
+| `nats.cache.operation` | both | `get`, `set`, `refresh`, `remove` |
+| `nats.cache.bucket` | both | The configured `BucketName` |
+| `nats.cache.result` | duration | `hit`, `miss`, `ok`, `error`, `cancelled` |
+| `error.type` | duration | Exception type name; present only when `result=error` |
+| `nats.cache.miss.reason` | misses | see below |
+
+`nats.cache.bucket` is one value per cache instance, so it adds no meaningful cardinality while keeping
+two caches in the same process distinguishable. Spans carry the same tags, plus the optional
+`nats.cache.key`.
+
+| Miss reason | Meaning |
+| --- | --- |
+| `not_found` | Key absent, or already reaped by the NATS TTL. The ordinary miss. |
+| `expired` | Absolute expiration reached; the entry was evicted by this read. |
+| `undeserializable` | Legacy or corrupt envelope (see [Cache Entry Format and Upgrades](#cache-entry-format-and-upgrades)). A sustained rate means a format migration has not drained. |
+| `revision_conflict` | Lost an optimistic-concurrency race while refreshing a sliding expiration. A sustained rate means key contention. |
+
+### Example queries
+
+The series names below assume the default Prometheus exporter, which appends the unit and a `_total`
+suffix (`add_metric_suffixes = true`): the histogram's unit `s` makes it `..._seconds_bucket` /
+`..._seconds_count`, and the misses counter becomes `nats_cache_misses_total`. If you set
+`add_metric_suffixes = false`, drop the `_seconds` infix and the `_total` suffix.
+
+```promql
+# Hit ratio. Both selectors must filter on the same operation — leaving it off the numerator would
+# fold refresh hits into a denominator that counts only gets, producing a ratio above 1.
+sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get",nats_cache_result="hit"}[5m]))
+  / sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get"}[5m]))
+
+# p99 latency by operation
+histogram_quantile(0.99, sum by (le, nats_cache_operation)
+  (rate(nats_cache_operation_duration_seconds_bucket[5m])))
+
+# Miss rate by reason
+sum by (nats_cache_miss_reason) (rate(nats_cache_misses_total[5m]))
+```
+
+### Notes
+
+- **Cache keys are never recorded on metrics.** Set `options.Telemetry.RecordCacheKeys = true` to add the
+  key to *spans* as `nats.cache.key`; it defaults to `false` because keys commonly embed user or tenant
+  identifiers.
+- **`TryGet` failures report `result=error`, not `result=miss`.** The read failed rather than finding
+  nothing, and conflating the two would make an outage look like a cold cache. The observed miss rate a
+  caller experiences is `miss + error`.
+- **`TryGet` reports as `operation=get`.** The `IBufferWriter` overload is a zero-copy detail, not a
+  different cache operation, so hit ratio covers all read paths.
+- **Cancellation of the caller's own token is `result=cancelled`, not an error**, so shutdown-time
+  cancellation does not trigger error alerts. An `OperationCanceledException` raised for any other reason —
+  a NATS request timeout, for example — is reported as `result=error`, matching how the same event is
+  logged, so genuine failures are never hidden behind the cancellation filter.
+- An `ArgumentOutOfRangeException` from an invalid expiration passed to `Set` is not counted — that
+  operation never reaches NATS.
+- A miss leaves the span status `Unset`. Only genuine failures set `Error`.
+- **Naming:** there is no stable OpenTelemetry semantic convention for caches, so `nats.cache.*` is a
+  library-scoped prefix. `db.client.*` was rejected because NATS KV has no registered `db.system.name`
+  value and cache traffic would pollute database dashboards. If OTel later stabilizes a cache convention
+  it can be adopted alongside these names without breaking existing dashboards.
+
+### Interaction with `HybridCache`
+
+`nats.cache.*` measures **only the L2 (NATS) layer**. An L1 in-process hit produces no measurement at all,
+so the hit ratio above is the hit ratio *of reads that reached NATS*, not of application cache lookups.
+
+`Microsoft.Extensions.Caching.Hybrid` (10.7.0) reports its own combined L1+L2 telemetry through
+`EventCounters` on `HybridCacheEventSource`, not through a `Meter` — so `AddMeter("Microsoft.Extensions.Caching.Hybrid")`
+yields nothing, and an `EventListener` is required for the L1 view.
+
+`NATS.Client.Core` publishes its own `ActivitySource` for messaging spans; those nest beneath the cache
+spans when both sources are subscribed.
+
+### Tuning
+
+Omit `AddMeter`/`AddSource` to disable metrics or tracing independently. To keep hit-ratio data while
+dropping the more expensive histogram:
+
+```csharp
+metrics.AddView(NatsCacheTelemetryNames.OperationDurationInstrumentName, MetricStreamConfiguration.Drop);
+```
+
+The `nats.cache.misses` counter continues to record when the histogram is dropped.
+
 ## Additional Resources
 
 * [ASP.NET Core Hybrid Cache Documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0)
 * [NATS .NET Client Documentation](https://nats-io.github.io/nats.net/api/NATS.Client.Core.NatsOpts.html)
+* [.NET Metrics Documentation](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/metrics)
+* [OpenTelemetry .NET Documentation](https://opentelemetry.io/docs/languages/dotnet/)

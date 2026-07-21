@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -44,6 +45,7 @@ public partial class NatsCache : IBufferDistributedCache
     private readonly string _keyPrefix;
     private readonly ILogger _logger;
     private readonly INatsConnection _natsConnection;
+    private readonly Lazy<NatsCacheTelemetry> _telemetry;
     private Lazy<Task<INatsKVStore>> _lazyKvStore;
 
     public NatsCache(
@@ -65,12 +67,28 @@ public partial class NatsCache : IBufferDistributedCache
         _natsConnection = natsConnection;
         _logger = logger ?? NullLogger<NatsCache>.Instance;
         _keyEncoder = keyEncoder ?? new NatsCacheKeyEncoder();
+
+        // Built lazily because the factory reads MeterFactory, an init-only property that is assigned after
+        // this constructor body runs. Lazy (rather than a ??= on a volatile field) so a startup race cannot
+        // create a second set of Instruments that get published to listeners but never recorded to.
+        var recordCacheKeys = options.Telemetry.RecordCacheKeys;
+        _telemetry = new Lazy<NatsCacheTelemetry>(
+            () => new NatsCacheTelemetry(MeterFactory, _bucketName, recordCacheKeys),
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     // The clock used for all expiration calculations. Defaults to TimeProvider.System; the DI
     // registration overrides it with a TimeProvider resolved from the container when one is present
     // (for example, FakeTimeProvider in tests). Injected via init to keep the constructor unchanged.
     internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+
+    // The IMeterFactory used to create the cache's Meter, resolved from DI when present. Injected via init
+    // (like TimeProvider above) to keep the public constructor unchanged. When absent — direct construction,
+    // or a container without AddMetrics() — telemetry falls back to a process-wide static Meter of the same
+    // name, so subscribers see identical instruments either way.
+    internal IMeterFactory? MeterFactory { get; init; }
+
+    private NatsCacheTelemetry Telemetry => _telemetry.Value;
 
     /// <inheritdoc />
     public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
@@ -83,22 +101,33 @@ public partial class NatsCache : IBufferDistributedCache
         DistributedCacheEntryOptions options,
         CancellationToken token = default)
     {
+        // GetTtl throws ArgumentOutOfRangeException for caller-supplied bad expirations. The scope opens
+        // after it deliberately: that is a caller bug that never reaches NATS, so counting it would fire the
+        // error-rate alert on an operation that was never attempted and inject a ~0s latency sample.
         var ttl = GetTtl(options);
         var entry = CreateCacheEntry(value, options);
 
+        // The single terminal implementation for all four Set entry points. Set(byte[]), Set(ReadOnlySequence),
+        // and SetAsync(ReadOnlySequence) delegate here and are deliberately left uninstrumented, so the
+        // three-deep Set(ReadOnlySequence) chain still records exactly one measurement.
+        var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, CacheOperation.Set, key, token);
         try
         {
             var kvStore = await GetKvStore().ConfigureAwait(false);
 
-            // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-            await ((NatsKVStore)kvStore)
+            await kvStore
                 .PutWithTtlAsync(GetEncodedKey(key), entry, ttl ?? TimeSpan.Zero, CacheEntrySerializer, token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
+            scope.SetError(ex);
             LogException(ex);
             throw;
+        }
+        finally
+        {
+            scope.Complete();
         }
     }
 
@@ -123,14 +152,24 @@ public partial class NatsCache : IBufferDistributedCache
     /// <inheritdoc />
     public async Task RemoveAsync(string key, CancellationToken token = default)
     {
+        // Instrumented here rather than in RemoveCoreAsync, which is also called from GetAndRefreshAsync's
+        // absolute-expiry eviction path. Instrumenting the core would emit a phantom operation=remove for
+        // every expired read — inflating remove rate and nesting a bogus remove span inside a get. The
+        // eviction's latency correctly lands inside the enclosing get instead, because the caller waited.
+        var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, CacheOperation.Remove, key, token);
         try
         {
             await RemoveCoreAsync(key, null, token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
+            scope.SetError(ex);
             LogException(ex);
             throw;
+        }
+        finally
+        {
+            scope.Complete();
         }
     }
 
@@ -142,7 +181,7 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            await GetAndRefreshAsync(key, token).ConfigureAwait(false);
+            await GetAndRefreshAsync(key, CacheOperation.Refresh, token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -159,7 +198,7 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            return await GetAndRefreshAsync(key, token).ConfigureAwait(false);
+            return await GetAndRefreshAsync(key, CacheOperation.Get, token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -180,7 +219,10 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            var result = await GetAndRefreshAsync(key, token).ConfigureAwait(false);
+            // Reports as operation=get, not a distinct operation: the IBufferWriter overload is a zero-copy
+            // detail, and merging it keeps hit ratio computed over all read paths — which matters because
+            // HybridCache drives its L2 reads exclusively through this method.
+            var result = await GetAndRefreshAsync(key, CacheOperation.Get, token).ConfigureAwait(false);
             if (result != null)
             {
                 destination.Write(result);
@@ -402,88 +444,111 @@ public partial class NatsCache : IBufferDistributedCache
 
     private Task<INatsKVStore> GetKvStore() => _lazyKvStore.Value;
 
-    private async Task<byte[]?> GetAndRefreshAsync(string key, CancellationToken token)
+    // The shared read core for Get, TryGet, and Refresh (and their sync overloads). Instrumented here
+    // rather than in the three public methods so that TryGetAsync's swallowed failures are still recorded
+    // as errors — the scope closes before the exception reaches TryGetAsync's catch — and so no read path
+    // can be counted twice.
+    private async Task<byte[]?> GetAndRefreshAsync(string key, CacheOperation operation, CancellationToken token)
     {
-        var encodedKey = GetEncodedKey(key);
-        var kvStore = await GetKvStore().ConfigureAwait(false);
+        var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, operation, key, token);
         try
         {
-            var natsResult = await kvStore
-                .TryGetEntryAsync(encodedKey, serializer: CacheEntrySerializer, cancellationToken: token)
-                .ConfigureAwait(false);
-            if (!natsResult.Success)
+            // GetKvStore is inside the scope so first-use connect and bucket-creation failures are recorded
+            // as errors too. This does not change which exceptions propagate.
+            var encodedKey = GetEncodedKey(key);
+            var kvStore = await GetKvStore().ConfigureAwait(false);
+            try
             {
-                return null;
-            }
-
-            var kvEntry = natsResult.Value;
-            if (kvEntry.Value == null)
-            {
-                // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
-                // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
-                // cache miss and leave the entry in place. It self-heals when the key is next written
-                // (Set overwrites unconditionally), and any TTL'd entry is reaped by NATS. We
-                // deliberately do not evict it (an older node must not delete entries written in a
-                // newer format during a rolling deploy) nor throw (a cache should degrade to a miss,
-                // not fail the caller's operation). Logged at Debug to aid diagnosis without flooding
-                // logs during a JSON->binary migration, when every legacy key transiently lands here.
-                LogUndeserializableEntry(key);
-                return null;
-            }
-
-            // Check absolute expiration
-            if (IsAbsolutelyExpired(kvEntry.Value))
-            {
-                // NatsKVWrongLastRevisionException is caught below
-                var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
-                await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
-                return null;
-            }
-
-            await UpdateEntryExpirationAsync(kvEntry).ConfigureAwait(false);
-            return kvEntry.Value.Data;
-        }
-        catch (NatsKVWrongLastRevisionException)
-        {
-            // Someone else updated it; that's fine, we'll get the latest version next time
-            return null;
-        }
-
-        // Local Functions
-        async Task UpdateEntryExpirationAsync(NatsKVEntry<CacheEntry> kvEntry)
-        {
-            if (kvEntry.Value?.SlidingExpirationTicks == null)
-            {
-                return;
-            }
-
-            // If we have a sliding expiration, use it as the TTL
-            var ttl = TimeSpan.FromTicks(kvEntry.Value.SlidingExpirationTicks.Value);
-
-            // If we also have an absolute expiration, make sure we don't exceed it
-            if (kvEntry.Value.AbsoluteExpiration != null)
-            {
-                var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
-
-                // Use the minimum of sliding window or remaining absolute time
-                if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
+                var natsResult = await kvStore
+                    .TryGetEntryAsync(encodedKey, serializer: CacheEntrySerializer, cancellationToken: token)
+                    .ConfigureAwait(false);
+                if (!natsResult.Success)
                 {
-                    ttl = remainingTime;
+                    scope.SetMiss(CacheMissReason.NotFound);
+                    return null;
+                }
+
+                var kvEntry = natsResult.Value;
+                if (kvEntry.Value == null)
+                {
+                    // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
+                    // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
+                    // cache miss and leave the entry in place. It self-heals when the key is next written
+                    // (Set overwrites unconditionally), and any TTL'd entry is reaped by NATS. We
+                    // deliberately do not evict it (an older node must not delete entries written in a
+                    // newer format during a rolling deploy) nor throw (a cache should degrade to a miss,
+                    // not fail the caller's operation). Logged at Debug to aid diagnosis without flooding
+                    // logs during a JSON->binary migration, when every legacy key transiently lands here.
+                    LogUndeserializableEntry(key);
+                    scope.SetMiss(CacheMissReason.Undeserializable);
+                    return null;
+                }
+
+                // Check absolute expiration
+                if (IsAbsolutelyExpired(kvEntry.Value))
+                {
+                    // NatsKVWrongLastRevisionException is caught below
+                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
+                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                    scope.SetMiss(CacheMissReason.Expired);
+                    return null;
+                }
+
+                await UpdateEntryExpirationAsync(kvEntry).ConfigureAwait(false);
+                scope.SetHit();
+                return kvEntry.Value.Data;
+            }
+            catch (NatsKVWrongLastRevisionException)
+            {
+                // Someone else updated it; that's fine, we'll get the latest version next time
+                scope.SetMiss(CacheMissReason.RevisionConflict);
+                return null;
+            }
+
+            // Local Functions
+            async Task UpdateEntryExpirationAsync(NatsKVEntry<CacheEntry> kvEntry)
+            {
+                if (kvEntry.Value?.SlidingExpirationTicks == null)
+                {
+                    return;
+                }
+
+                // If we have a sliding expiration, use it as the TTL
+                var ttl = TimeSpan.FromTicks(kvEntry.Value.SlidingExpirationTicks.Value);
+
+                // If we also have an absolute expiration, make sure we don't exceed it
+                if (kvEntry.Value.AbsoluteExpiration != null)
+                {
+                    var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
+
+                    // Use the minimum of sliding window or remaining absolute time
+                    if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
+                    {
+                        ttl = remainingTime;
+                    }
+                }
+
+                if (ttl > TimeSpan.Zero)
+                {
+                    // Use optimistic concurrency control with the last revision
+                    await kvStore.UpdateWithTtlAsync(
+                        encodedKey,
+                        kvEntry.Value,
+                        kvEntry.Revision,
+                        ttl,
+                        serializer: CacheEntrySerializer,
+                        cancellationToken: token).ConfigureAwait(false);
                 }
             }
-
-            if (ttl > TimeSpan.Zero)
-            {
-                // Use optimistic concurrency control with the last revision
-                // todo: remove cast after https://github.com/nats-io/nats.net/pull/852 is released
-                await kvStore.UpdateWithTtlAsync(
-                    encodedKey,
-                    kvEntry.Value,
-                    kvEntry.Revision,
-                    ttl,
-                    serializer: CacheEntrySerializer,
-                    cancellationToken: token).ConfigureAwait(false);
-            }
+        }
+        catch (Exception ex)
+        {
+            scope.SetError(ex);
+            throw;
+        }
+        finally
+        {
+            scope.Complete();
         }
     }
 
