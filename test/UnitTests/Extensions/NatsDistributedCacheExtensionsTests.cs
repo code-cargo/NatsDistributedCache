@@ -34,6 +34,41 @@ public class CacheServiceExtensionsUnitTests
     }
 
     [Fact]
+    public void AddNatsCache_RegistersMaintenanceAsSingleton()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+
+        // Act
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+
+        // Assert
+        var maintenance = services.FirstOrDefault(desc => desc.ServiceType == typeof(INatsCacheMaintenance));
+        Assert.NotNull(maintenance);
+        Assert.Equal(ServiceLifetime.Singleton, maintenance.Lifetime);
+    }
+
+    [Fact]
+    public void AddNatsCache_ResolvesMaintenanceAsSameInstanceAsDistributedCache()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(_mockNatsConnection.Object);
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+
+        // Act
+        var provider = services.BuildServiceProvider();
+        var distributedCache = provider.GetRequiredService<IDistributedCache>();
+        var maintenance = provider.GetRequiredService<INatsCacheMaintenance>();
+
+        // Assert - both surfaces are backed by the one NatsCache singleton, so a purge and a cache read
+        // share the same KV store, key prefix, and key encoder.
+        Assert.Same(distributedCache, maintenance);
+        Assert.IsType<NatsCache>(maintenance);
+    }
+
+    [Fact]
     public void AddNatsCache_ReplacesPreviouslyUserRegisteredServices()
     {
         // Arrange

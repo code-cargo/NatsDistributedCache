@@ -159,6 +159,46 @@ Notes:
 - Overriding `History` (away from `1`) or clearing `LimitMarkerTTL` in `ConfigureBucketOnCreate` disables
   reliable per-key TTL.
 
+## Multi-tenant Key Prefixes and Bulk Purge
+
+Set `CacheKeyPrefix` to partition a single bucket across apps, services, or tenants. Every key is then
+stored as `<CacheKeyPrefix>.<key>`, so several consumers can safely share one KV bucket:
+
+```csharp
+services.AddNatsDistributedCache(options =>
+{
+    options.BucketName = "cache";
+    options.CacheKeyPrefix = "tenant-42";
+});
+```
+
+To evict every entry beneath a sub-prefix — for example, all keys for one tenant — resolve
+`INatsCacheMaintenance` and call `PurgeByPrefixAsync`. It is implemented by the same singleton that backs
+`IDistributedCache`, so it shares the bucket, key prefix, and key encoding:
+
+```csharp
+using CodeCargo.Nats.DistributedCache;
+
+var maintenance = serviceProvider.GetRequiredService<INatsCacheMaintenance>();
+
+// Purges every key stored as "orders.<...>" beneath the configured CacheKeyPrefix.
+// Returns the number of keys purged.
+long purged = await maintenance.PurgeByPrefixAsync("orders");
+```
+
+The supplied prefix is relative to `CacheKeyPrefix` and matches keys hierarchically: `"orders"` purges
+`orders.a` and `orders.a.b`, but not `orders-archive.a`.
+
+Notes:
+
+- This is a bulk, **irreversible** maintenance operation, not a per-request cache call. It enumerates and
+  purges every matching key.
+- The prefix must be non-empty and not consist solely of whitespace or `.` characters; otherwise
+  `PurgeByPrefixAsync` throws `ArgumentException`. This guards against accidentally purging the entire
+  prefix space (or, with no `CacheKeyPrefix`, the whole bucket).
+- Purging is scoped to children of the prefix (`<prefix>.<...>`); the cache never stores a bare key equal
+  to the prefix itself.
+
 ## Controlling Expiration Timing
 
 Expiration is computed from a [`TimeProvider`](https://learn.microsoft.com/dotnet/api/system.timeprovider),
