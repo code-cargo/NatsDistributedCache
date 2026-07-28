@@ -1,5 +1,3 @@
-using NATS.Client.KeyValueStore;
-
 namespace CodeCargo.Nats.DistributedCache;
 
 public partial class NatsCache : INatsCacheMaintenance
