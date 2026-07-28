@@ -16,11 +16,10 @@ namespace CodeCargo.Nats.DistributedCache;
 /// nats-io/nats.net#852 was backed out. Re-check on future NATS.Net upgrades — once
 /// <c>PutAsync</c>/<c>UpdateAsync</c> gain TTL overloads, this class can be deleted in favor of them.
 /// </remarks>
-public static class NatsExtensions
+public static partial class NatsExtensions
 {
     private const string NatsExpectedLastSubjectSequence = "Nats-Expected-Last-Subject-Sequence";
     private const string NatsTtl = "Nats-TTL";
-    private static readonly Regex ValidKeyRegex = new(pattern: @"\A[-/_=\.a-zA-Z0-9]+\z", RegexOptions.Compiled);
     private static readonly NatsKVException KeyCannotBeEmptyException = new("Key cannot be empty");
 
     private static readonly NatsKVException KeyCannotStartOrEndWithPeriodException =
@@ -245,7 +244,7 @@ public static class NatsExtensions
             return KeyCannotStartOrEndWithPeriodException;
         }
 
-        if (!ValidKeyRegex.IsMatch(key))
+        if (!ValidKeyRegex().IsMatch(key))
         {
             return KeyContainsInvalidCharactersException;
         }
@@ -263,4 +262,9 @@ public static class NatsExtensions
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowException(Exception exception) => throw exception;
+
+    // Source-generated (AOT/trim-safe) replacement for a RegexOptions.Compiled Regex, which relied on
+    // reflection-emit. Pattern is unchanged: \A[-/_=\.a-zA-Z0-9]+\z (\A/\z anchors plus the / = . chars).
+    [GeneratedRegex(@"\A[-/_=\.a-zA-Z0-9]+\z", RegexOptions.Compiled)]
+    private static partial Regex ValidKeyRegex();
 }

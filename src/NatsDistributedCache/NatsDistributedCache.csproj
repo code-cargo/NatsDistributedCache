@@ -6,6 +6,11 @@
     <RootNamespace>CodeCargo.Nats.DistributedCache</RootNamespace>
     <Description>NATS implementation of IDistributedCache.</Description>
 
+    <!-- Turns on IsTrimmable + EnableTrimAnalyzer + EnableAotAnalyzer + EnableSingleFileAnalyzer so
+         trim/AOT (IL2xxx/IL3xxx) issues surface at build time. CI builds with
+         TreatWarningsAsErrors=true, so these become hard build failures. -->
+    <IsAotCompatible>true</IsAotCompatible>
+
     <!-- Assembly signing (only if key file exists) -->
     <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">true</SignAssembly>
     <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk')">$(MSBuildThisFileDirectory)..\..\keys\NatsDistributedCache.2025-05-12.snk</AssemblyOriginatorKeyFile>
