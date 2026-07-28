@@ -98,49 +98,10 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
     public CacheEntry? Deserialize(in ReadOnlySequence<byte> buffer)
     {
         var reader = new SequenceReader<byte>(buffer);
-
-        if (!reader.TryRead(out var version) || version != FormatVersion)
+        if (!TryReadHeader(ref reader, out var absoluteExpiration, out var slidingExpirationTicks))
         {
-            // Unknown or legacy (e.g. JSON) entry: treat as a cache miss.
+            // Unknown/legacy/corrupt framing: treat as a cache miss (see TryReadHeader).
             return null;
-        }
-
-        if (!reader.TryRead(out var flags) || (flags & ~KnownFlags) != 0)
-        {
-            // Unknown flag bits: corrupt data, or a future format that mistakenly reused this version.
-            // Fail closed rather than misinterpreting the remaining bytes.
-            return null;
-        }
-
-        DateTimeOffset? absoluteExpiration = null;
-        if ((flags & HasAbsoluteExpiration) != 0)
-        {
-            if (!reader.TryReadLittleEndian(out long absoluteTicks) ||
-                absoluteTicks < DateTimeOffset.MinValue.Ticks ||
-                absoluteTicks > DateTimeOffset.MaxValue.Ticks)
-            {
-                // Missing or out-of-range ticks (corrupt entry): treat as a miss instead of throwing.
-                return null;
-            }
-
-            absoluteExpiration = new DateTimeOffset(absoluteTicks, TimeSpan.Zero);
-        }
-
-        long? slidingExpirationTicks = null;
-        if ((flags & HasSlidingExpiration) != 0)
-        {
-            if (!reader.TryReadLittleEndian(out long slidingTicks) ||
-                slidingTicks <= 0 ||
-                slidingTicks > MaxTtlTicks)
-            {
-                // Missing, non-positive, or out-of-range sliding ticks (corrupt entry): fail closed to
-                // a miss, like the absolute-ticks bounds check above. A valid sliding window is always
-                // a positive TimeSpan within (0, MaxTtlTicks]; the write path enforces the same ceiling,
-                // so any legitimately written value round-trips.
-                return null;
-            }
-
-            slidingExpirationTicks = slidingTicks;
         }
 
         var remaining = reader.UnreadSequence;
@@ -152,5 +113,67 @@ internal sealed class CacheEntryBinarySerializer : INatsSerialize<CacheEntry>, I
             SlidingExpirationTicks = slidingExpirationTicks,
             Data = data,
         };
+    }
+
+    /// <summary>
+    /// Reads and validates the fixed <see cref="CacheEntry"/> header (version, flags, and the optional
+    /// expiration fields), advancing <paramref name="reader"/> to the first payload byte. Returns
+    /// <see langword="false"/> for any unknown, legacy (e.g. JSON), or corrupt framing so callers can fail
+    /// closed to a cache miss instead of misinterpreting the remaining bytes. Shared by
+    /// <see cref="Deserialize"/> and the single-copy read path in
+    /// <see cref="BufferWritingCacheEntryDeserializer"/> so both agree, byte for byte, on what a valid entry
+    /// is and where its payload begins.
+    /// </summary>
+    internal static bool TryReadHeader(
+        ref SequenceReader<byte> reader,
+        out DateTimeOffset? absoluteExpiration,
+        out long? slidingExpirationTicks)
+    {
+        absoluteExpiration = null;
+        slidingExpirationTicks = null;
+
+        if (!reader.TryRead(out var version) || version != FormatVersion)
+        {
+            // Unknown or legacy (e.g. JSON) entry: treat as a cache miss.
+            return false;
+        }
+
+        if (!reader.TryRead(out var flags) || (flags & ~KnownFlags) != 0)
+        {
+            // Unknown flag bits: corrupt data, or a future format that mistakenly reused this version.
+            // Fail closed rather than misinterpreting the remaining bytes.
+            return false;
+        }
+
+        if ((flags & HasAbsoluteExpiration) != 0)
+        {
+            if (!reader.TryReadLittleEndian(out long absoluteTicks) ||
+                absoluteTicks < DateTimeOffset.MinValue.Ticks ||
+                absoluteTicks > DateTimeOffset.MaxValue.Ticks)
+            {
+                // Missing or out-of-range ticks (corrupt entry): treat as a miss instead of throwing.
+                return false;
+            }
+
+            absoluteExpiration = new DateTimeOffset(absoluteTicks, TimeSpan.Zero);
+        }
+
+        if ((flags & HasSlidingExpiration) != 0)
+        {
+            if (!reader.TryReadLittleEndian(out long slidingTicks) ||
+                slidingTicks <= 0 ||
+                slidingTicks > MaxTtlTicks)
+            {
+                // Missing, non-positive, or out-of-range sliding ticks (corrupt entry): fail closed to
+                // a miss, like the absolute-ticks bounds check above. A valid sliding window is always
+                // a positive TimeSpan within (0, MaxTtlTicks]; the write path enforces the same ceiling,
+                // so any legitimately written value round-trips.
+                return false;
+            }
+
+            slidingExpirationTicks = slidingTicks;
+        }
+
+        return true;
     }
 }

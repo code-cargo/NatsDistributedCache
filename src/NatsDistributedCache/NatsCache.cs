@@ -219,15 +219,12 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            // Reports as operation=get, not a distinct operation: the IBufferWriter overload is a zero-copy
-            // detail, and merging it keeps hit ratio computed over all read paths — which matters because
-            // HybridCache drives its L2 reads exclusively through this method.
-            var result = await GetAndRefreshAsync(key, CacheOperation.Get, token).ConfigureAwait(false);
-            if (result != null)
-            {
-                destination.Write(result);
-                return true;
-            }
+            // Writes the payload straight into the caller's buffer on a hit (a single copy), rather than
+            // fetching a byte[] and copying it a second time. Reports as operation=get, not a distinct
+            // operation: the IBufferWriter overload is a zero-copy detail, and merging it keeps hit ratio
+            // computed over all read paths — which matters because HybridCache drives its L2 reads
+            // exclusively through this method.
+            return await TryGetAndRefreshBufferAsync(key, destination, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -469,7 +466,8 @@ public partial class NatsCache : IBufferDistributedCache
                 }
 
                 var kvEntry = natsResult.Value;
-                if (kvEntry.Value == null)
+                var entry = kvEntry.Value;
+                if (entry == null)
                 {
                     // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
                     // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
@@ -485,7 +483,7 @@ public partial class NatsCache : IBufferDistributedCache
                 }
 
                 // Check absolute expiration
-                if (IsAbsolutelyExpired(kvEntry.Value))
+                if (IsAbsolutelyExpired(entry))
                 {
                     // NatsKVWrongLastRevisionException is caught below
                     var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
@@ -494,51 +492,16 @@ public partial class NatsCache : IBufferDistributedCache
                     return null;
                 }
 
-                await UpdateEntryExpirationAsync(kvEntry).ConfigureAwait(false);
+                await UpdateEntryExpirationAsync(kvStore, encodedKey, entry, kvEntry.Revision, token)
+                    .ConfigureAwait(false);
                 scope.SetHit();
-                return kvEntry.Value.Data;
+                return entry.Data;
             }
             catch (NatsKVWrongLastRevisionException)
             {
                 // Someone else updated it; that's fine, we'll get the latest version next time
                 scope.SetMiss(CacheMissReason.RevisionConflict);
                 return null;
-            }
-
-            // Local Functions
-            async Task UpdateEntryExpirationAsync(NatsKVEntry<CacheEntry> kvEntry)
-            {
-                if (kvEntry.Value?.SlidingExpirationTicks == null)
-                {
-                    return;
-                }
-
-                // If we have a sliding expiration, use it as the TTL
-                var ttl = TimeSpan.FromTicks(kvEntry.Value.SlidingExpirationTicks.Value);
-
-                // If we also have an absolute expiration, make sure we don't exceed it
-                if (kvEntry.Value.AbsoluteExpiration != null)
-                {
-                    var remainingTime = kvEntry.Value.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
-
-                    // Use the minimum of sliding window or remaining absolute time
-                    if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
-                    {
-                        ttl = remainingTime;
-                    }
-                }
-
-                if (ttl > TimeSpan.Zero)
-                {
-                    // Use optimistic concurrency control with the last revision
-                    await kvStore.UpdateWithTtlAsync(
-                        encodedKey,
-                        kvEntry.Value,
-                        kvEntry.Revision,
-                        ttl,
-                        serializer: CacheEntrySerializer,
-                        cancellationToken: token).ConfigureAwait(false);
-                }
             }
         }
         catch (Exception ex)
@@ -549,6 +512,150 @@ public partial class NatsCache : IBufferDistributedCache
         finally
         {
             scope.Complete();
+        }
+    }
+
+    // The read core behind TryGetAsync(IBufferWriter<byte>). Mirrors GetAndRefreshAsync's telemetry,
+    // expiration, and revision-conflict handling exactly, but writes the payload straight into the caller's
+    // buffer on a hit instead of returning a byte[], eliminating the intermediate array on the common path.
+    // Instrumented here (not in TryGetAsync) so its swallowed failures are still recorded as errors — the
+    // scope closes before the exception reaches TryGetAsync's catch.
+    private async ValueTask<bool> TryGetAndRefreshBufferAsync(
+        string key,
+        IBufferWriter<byte> destination,
+        CancellationToken token)
+    {
+        var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, CacheOperation.Get, key, token);
+        try
+        {
+            var encodedKey = GetEncodedKey(key);
+            var kvStore = await GetKvStore().ConfigureAwait(false);
+
+            // A per-read deserializer bound to this destination: on a hit with no sliding refresh it writes
+            // the payload directly into the buffer and reports payloadWritten; otherwise it reports enough
+            // for the branches below to finish without touching the buffer. See the type for the full
+            // "nothing written on a miss" contract.
+            var deserializer = new BufferWritingCacheEntryDeserializer(destination, TimeProvider);
+            try
+            {
+                var natsResult = await kvStore
+                    .TryGetEntryAsync(encodedKey, serializer: deserializer, cancellationToken: token)
+                    .ConfigureAwait(false);
+                if (!natsResult.Success)
+                {
+                    scope.SetMiss(CacheMissReason.NotFound);
+                    return false;
+                }
+
+                var kvEntry = natsResult.Value;
+                var result = kvEntry.Value;
+                if (result == null)
+                {
+                    // Undeserializable entry: treated as a miss and left in place, identical to
+                    // GetAndRefreshAsync (see its comment for the rolling-deploy rationale).
+                    LogUndeserializableEntry(key);
+                    scope.SetMiss(CacheMissReason.Undeserializable);
+                    return false;
+                }
+
+                if (result.PayloadWritten)
+                {
+                    // Confirmed hit already streamed into the caller's buffer — the single-copy fast path.
+                    scope.SetHit();
+                    return true;
+                }
+
+                if (result.AbsolutelyExpired)
+                {
+                    // Nothing was written. Evict and report a miss, as in GetAndRefreshAsync.
+                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
+                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                    scope.SetMiss(CacheMissReason.Expired);
+                    return false;
+                }
+
+                // Sliding-expiration entry: the deserializer materialized the value because refreshing the
+                // TTL re-writes it. Apply the same absolute-expiry, refresh, and eviction logic as
+                // GetAndRefreshAsync before copying the payload out, so the two read paths agree.
+                var entry = result.Entry;
+                if (IsAbsolutelyExpired(entry))
+                {
+                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
+                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                    scope.SetMiss(CacheMissReason.Expired);
+                    return false;
+                }
+
+                // Refresh first — a lost revision race surfaces as NatsKVWrongLastRevisionException and is
+                // caught below as a miss before anything is written — then copy the payload out.
+                await UpdateEntryExpirationAsync(kvStore, encodedKey, entry, kvEntry.Revision, token)
+                    .ConfigureAwait(false);
+                if (entry.Data is { Length: > 0 } data)
+                {
+                    destination.Write(data);
+                }
+
+                scope.SetHit();
+                return true;
+            }
+            catch (NatsKVWrongLastRevisionException)
+            {
+                // Someone else updated it during the sliding refresh; nothing was written to the buffer.
+                scope.SetMiss(CacheMissReason.RevisionConflict);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            scope.SetError(ex);
+            throw;
+        }
+        finally
+        {
+            scope.Complete();
+        }
+    }
+
+    // Refreshes a sliding entry's TTL by re-writing it under optimistic concurrency (the last revision).
+    // Shared by both read cores so the array and buffer paths refresh identically. A no-op for entries
+    // without a sliding expiration. Extracted from GetAndRefreshAsync so there is a single implementation.
+    private async Task UpdateEntryExpirationAsync(
+        INatsKVStore kvStore,
+        string encodedKey,
+        CacheEntry entry,
+        ulong revision,
+        CancellationToken token)
+    {
+        if (entry.SlidingExpirationTicks == null)
+        {
+            return;
+        }
+
+        // If we have a sliding expiration, use it as the TTL
+        var ttl = TimeSpan.FromTicks(entry.SlidingExpirationTicks.Value);
+
+        // If we also have an absolute expiration, make sure we don't exceed it
+        if (entry.AbsoluteExpiration != null)
+        {
+            var remainingTime = entry.AbsoluteExpiration.Value - TimeProvider.GetUtcNow();
+
+            // Use the minimum of sliding window or remaining absolute time
+            if (remainingTime > TimeSpan.Zero && remainingTime < ttl)
+            {
+                ttl = remainingTime;
+            }
+        }
+
+        if (ttl > TimeSpan.Zero)
+        {
+            // Use optimistic concurrency control with the last revision
+            await kvStore.UpdateWithTtlAsync(
+                encodedKey,
+                entry,
+                revision,
+                ttl,
+                serializer: CacheEntrySerializer,
+                cancellationToken: token).ConfigureAwait(false);
         }
     }
 
