@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics.Metrics;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -181,7 +182,7 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            await GetAndRefreshAsync(key, CacheOperation.Refresh, token).ConfigureAwait(false);
+            await GetAndRefreshAsync(key, CacheOperation.Refresh, destination: null, token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -198,7 +199,8 @@ public partial class NatsCache : IBufferDistributedCache
     {
         try
         {
-            return await GetAndRefreshAsync(key, CacheOperation.Get, token).ConfigureAwait(false);
+            return (await GetAndRefreshAsync(key, CacheOperation.Get, destination: null, token)
+                .ConfigureAwait(false)).Data;
         }
         catch (Exception ex)
         {
@@ -221,10 +223,11 @@ public partial class NatsCache : IBufferDistributedCache
         {
             // Writes the payload straight into the caller's buffer on a hit (a single copy), rather than
             // fetching a byte[] and copying it a second time. Reports as operation=get, not a distinct
-            // operation: the IBufferWriter overload is a zero-copy detail, and merging it keeps hit ratio
+            // operation: the IBufferWriter overload is a single-copy detail, and merging it keeps hit ratio
             // computed over all read paths — which matters because HybridCache drives its L2 reads
             // exclusively through this method.
-            return await TryGetAndRefreshBufferAsync(key, destination, token).ConfigureAwait(false);
+            return (await GetAndRefreshAsync(key, CacheOperation.Get, destination, token)
+                .ConfigureAwait(false)).Hit;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -242,6 +245,12 @@ public partial class NatsCache : IBufferDistributedCache
 
         return false;
     }
+
+    // The absolute-expiry predicate over the raw instant, shared by the instance IsAbsolutelyExpired below
+    // and CacheEntryReadDeserializer's buffer fast path so the two read paths apply the identical rule
+    // (inclusive >= boundary, matching GetTtl) and cannot drift.
+    internal static bool IsAbsolutelyExpired(DateTimeOffset? absoluteExpiration, DateTimeOffset utcNow) =>
+        absoluteExpiration.HasValue && utcNow >= absoluteExpiration.Value;
 
     internal TimeSpan? GetTtl(DistributedCacheEntryOptions options)
     {
@@ -342,7 +351,7 @@ public partial class NatsCache : IBufferDistributedCache
     // boundary is inclusive (>=) to match GetTtl, which treats an absolute expiration at "now" as
     // already elapsed. Sliding expiration is enforced separately via the NATS entry TTL.
     internal bool IsAbsolutelyExpired(CacheEntry entry) =>
-        entry.AbsoluteExpiration.HasValue && TimeProvider.GetUtcNow() >= entry.AbsoluteExpiration.Value;
+        IsAbsolutelyExpired(entry.AbsoluteExpiration, TimeProvider.GetUtcNow());
 
     // Builds the NatsKVConfig used when CreateBucketIfNotExists is enabled. Pure and synchronous (does not
     // touch the NATS connection), so it is unit-testable without a server. Cache-appropriate defaults are
@@ -442,10 +451,20 @@ public partial class NatsCache : IBufferDistributedCache
     private Task<INatsKVStore> GetKvStore() => _lazyKvStore.Value;
 
     // The shared read core for Get, TryGet, and Refresh (and their sync overloads). Instrumented here
-    // rather than in the three public methods so that TryGetAsync's swallowed failures are still recorded
-    // as errors — the scope closes before the exception reaches TryGetAsync's catch — and so no read path
-    // can be counted twice.
-    private async Task<byte[]?> GetAndRefreshAsync(string key, CacheOperation operation, CancellationToken token)
+    // rather than in the public methods so that TryGetAsync's swallowed failures are still recorded as
+    // errors — the scope closes before the exception reaches TryGetAsync's catch — and so no read path can
+    // be counted twice.
+    //
+    // A null destination is the array path (Get/Refresh): the payload is materialized and returned as Data.
+    // A non-null destination is the single-copy TryGetAsync(IBufferWriter) path: on the common hit the
+    // payload is written straight into it and Data stays null. Both share every step below — store
+    // resolution, the undeserializable and absolute-expiry misses, the sliding-TTL refresh, and
+    // revision-conflict handling — so the two overloads cannot drift.
+    private async Task<(bool Hit, byte[]? Data)> GetAndRefreshAsync(
+        string key,
+        CacheOperation operation,
+        IBufferWriter<byte>? destination,
+        CancellationToken token)
     {
         var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, operation, key, token);
         try
@@ -454,88 +473,12 @@ public partial class NatsCache : IBufferDistributedCache
             // as errors too. This does not change which exceptions propagate.
             var encodedKey = GetEncodedKey(key);
             var kvStore = await GetKvStore().ConfigureAwait(false);
-            try
-            {
-                var natsResult = await kvStore
-                    .TryGetEntryAsync(encodedKey, serializer: CacheEntrySerializer, cancellationToken: token)
-                    .ConfigureAwait(false);
-                if (!natsResult.Success)
-                {
-                    scope.SetMiss(CacheMissReason.NotFound);
-                    return null;
-                }
 
-                var kvEntry = natsResult.Value;
-                var entry = kvEntry.Value;
-                if (entry == null)
-                {
-                    // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
-                    // pre-binary release, or genuine corruption. Intended behavior is to treat it as a
-                    // cache miss and leave the entry in place. It self-heals when the key is next written
-                    // (Set overwrites unconditionally), and any TTL'd entry is reaped by NATS. We
-                    // deliberately do not evict it (an older node must not delete entries written in a
-                    // newer format during a rolling deploy) nor throw (a cache should degrade to a miss,
-                    // not fail the caller's operation). Logged at Debug to aid diagnosis without flooding
-                    // logs during a JSON->binary migration, when every legacy key transiently lands here.
-                    LogUndeserializableEntry(key);
-                    scope.SetMiss(CacheMissReason.Undeserializable);
-                    return null;
-                }
-
-                // Check absolute expiration
-                if (IsAbsolutelyExpired(entry))
-                {
-                    // NatsKVWrongLastRevisionException is caught below
-                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
-                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
-                    scope.SetMiss(CacheMissReason.Expired);
-                    return null;
-                }
-
-                await UpdateEntryExpirationAsync(kvStore, encodedKey, entry, kvEntry.Revision, token)
-                    .ConfigureAwait(false);
-                scope.SetHit();
-                return entry.Data;
-            }
-            catch (NatsKVWrongLastRevisionException)
-            {
-                // Someone else updated it; that's fine, we'll get the latest version next time
-                scope.SetMiss(CacheMissReason.RevisionConflict);
-                return null;
-            }
-        }
-        catch (Exception ex)
-        {
-            scope.SetError(ex);
-            throw;
-        }
-        finally
-        {
-            scope.Complete();
-        }
-    }
-
-    // The read core behind TryGetAsync(IBufferWriter<byte>). Mirrors GetAndRefreshAsync's telemetry,
-    // expiration, and revision-conflict handling exactly, but writes the payload straight into the caller's
-    // buffer on a hit instead of returning a byte[], eliminating the intermediate array on the common path.
-    // Instrumented here (not in TryGetAsync) so its swallowed failures are still recorded as errors — the
-    // scope closes before the exception reaches TryGetAsync's catch.
-    private async ValueTask<bool> TryGetAndRefreshBufferAsync(
-        string key,
-        IBufferWriter<byte> destination,
-        CancellationToken token)
-    {
-        var scope = NatsCacheOperationScope.Start(Telemetry, TimeProvider, CacheOperation.Get, key, token);
-        try
-        {
-            var encodedKey = GetEncodedKey(key);
-            var kvStore = await GetKvStore().ConfigureAwait(false);
-
-            // A per-read deserializer bound to this destination: on a hit with no sliding refresh it writes
-            // the payload directly into the buffer and reports payloadWritten; otherwise it reports enough
-            // for the branches below to finish without touching the buffer. See the type for the full
-            // "nothing written on a miss" contract.
-            var deserializer = new BufferWritingCacheEntryDeserializer(destination, TimeProvider);
+            // One deserializer for both overloads, switched on `destination`: with none it materializes the
+            // entry for the array path; with one it streams the payload into the caller's writer on the
+            // common hit and otherwise reports enough for the branches below to finish without touching the
+            // buffer (see the type for the full "nothing written on a miss" contract).
+            var deserializer = new CacheEntryReadDeserializer(destination, TimeProvider);
             try
             {
                 var natsResult = await kvStore
@@ -544,65 +487,91 @@ public partial class NatsCache : IBufferDistributedCache
                 if (!natsResult.Success)
                 {
                     scope.SetMiss(CacheMissReason.NotFound);
-                    return false;
+                    return (false, null);
                 }
 
                 var kvEntry = natsResult.Value;
                 var result = kvEntry.Value;
-                if (result == null)
+                if (result is null)
                 {
-                    // Undeserializable entry: treated as a miss and left in place, identical to
-                    // GetAndRefreshAsync (see its comment for the rolling-deploy rationale).
-                    LogUndeserializableEntry(key);
+                    // Present entry whose bytes we cannot deserialize: a legacy JSON envelope from a
+                    // pre-binary release, or genuine corruption. Intended behavior is to treat it as a cache
+                    // miss and leave the entry in place. It self-heals when the key is next written (Set
+                    // overwrites unconditionally), and any TTL'd entry is reaped by NATS. We deliberately do
+                    // not evict it (an older node must not delete entries written in a newer format during a
+                    // rolling deploy) nor throw (a cache should degrade to a miss, not fail the caller's
+                    // operation). Logged at Debug — with the KV entry's own error, which separates corrupt
+                    // framing from a legacy envelope — to aid diagnosis without flooding logs during a
+                    // JSON->binary migration, when every legacy key transiently lands here.
+                    LogUndeserializableEntry(key, kvEntry.Error);
                     scope.SetMiss(CacheMissReason.Undeserializable);
-                    return false;
+                    return (false, null);
                 }
 
-                if (result.PayloadWritten)
+                if (result.Outcome == CacheEntryReadOutcome.DestinationFailure)
                 {
-                    // Confirmed hit already streamed into the caller's buffer — the single-copy fast path.
+                    // The caller's IBufferWriter threw while the payload was being written (e.g. HybridCache's
+                    // payload quota). That is not corrupt data, so surface it: rethrowing reaches the outer
+                    // catch (scope records error) and then TryGetAsync's catch (Warning with the exception,
+                    // false to the caller), rather than masquerading as an undeserializable miss.
+                    // ExceptionDispatchInfo preserves the original stack.
+                    ExceptionDispatchInfo.Capture(result.DestinationFailure!).Throw();
+                }
+
+                if (result.Outcome == CacheEntryReadOutcome.PayloadWritten)
+                {
+                    // Buffer fast path: a confirmed hit already streamed into the caller's writer.
                     scope.SetHit();
-                    return true;
+                    return (true, null);
                 }
 
-                if (result.AbsolutelyExpired)
+                if (result.Outcome == CacheEntryReadOutcome.AbsolutelyExpired)
                 {
-                    // Nothing was written. Evict and report a miss, as in GetAndRefreshAsync.
-                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
-                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                    // Buffer fast path: nothing was written. Evict and report a miss.
+                    await EvictExpiredAsync(key, kvEntry.Revision, token).ConfigureAwait(false);
                     scope.SetMiss(CacheMissReason.Expired);
-                    return false;
+                    return (false, null);
                 }
 
-                // Sliding-expiration entry: the deserializer materialized the value because refreshing the
-                // TTL re-writes it. Apply the same absolute-expiry, refresh, and eviction logic as
-                // GetAndRefreshAsync before copying the payload out, so the two read paths agree.
-                var entry = result.Entry;
+                // Materialized: an array read, or a sliding entry on the buffer path. The value is in hand,
+                // so apply absolute expiry, the sliding refresh, and eviction uniformly.
+                var entry = result.Entry!;
                 if (IsAbsolutelyExpired(entry))
                 {
-                    var natsDeleteOpts = new NatsKVDeleteOpts { Revision = kvEntry.Revision };
-                    await RemoveCoreAsync(key, natsDeleteOpts, token).ConfigureAwait(false);
+                    // NatsKVWrongLastRevisionException is caught below.
+                    await EvictExpiredAsync(key, kvEntry.Revision, token).ConfigureAwait(false);
                     scope.SetMiss(CacheMissReason.Expired);
-                    return false;
+                    return (false, null);
                 }
 
                 // Refresh first — a lost revision race surfaces as NatsKVWrongLastRevisionException and is
-                // caught below as a miss before anything is written — then copy the payload out.
+                // caught below as a miss before anything is emitted.
                 await UpdateEntryExpirationAsync(kvStore, encodedKey, entry, kvEntry.Revision, token)
                     .ConfigureAwait(false);
+
+                if (destination is null)
+                {
+                    scope.SetHit();
+                    return (true, entry.Data);
+                }
+
+                // Sliding buffer hit: copy the materialized payload into the caller's writer. A writer
+                // failure here propagates to the outer catch and is reported as an error, matching the fast
+                // path's DestinationFailure handling above.
                 if (entry.Data is { Length: > 0 } data)
                 {
                     destination.Write(data);
                 }
 
                 scope.SetHit();
-                return true;
+                return (true, null);
             }
             catch (NatsKVWrongLastRevisionException)
             {
-                // Someone else updated it during the sliding refresh; nothing was written to the buffer.
+                // Someone else updated it (during the sliding refresh); we'll get the latest next time.
+                // Nothing was emitted.
                 scope.SetMiss(CacheMissReason.RevisionConflict);
-                return false;
+                return (false, null);
             }
         }
         catch (Exception ex)
@@ -615,6 +584,13 @@ public partial class NatsCache : IBufferDistributedCache
             scope.Complete();
         }
     }
+
+    // Evicts an absolutely-expired entry using optimistic concurrency on its last revision. A concurrent
+    // writer surfaces as NatsKVWrongLastRevisionException, which the read core treats as a revision-conflict
+    // miss. Deliberately routed through RemoveCoreAsync, which is not instrumented, so an expired read does
+    // not emit a phantom operation=remove.
+    private Task EvictExpiredAsync(string key, ulong revision, CancellationToken token) =>
+        RemoveCoreAsync(key, new NatsKVDeleteOpts { Revision = revision }, token);
 
     // Refreshes a sliding entry's TTL by re-writing it under optimistic concurrency (the last revision).
     // Shared by both read cores so the array and buffer paths refresh identically. A no-op for entries

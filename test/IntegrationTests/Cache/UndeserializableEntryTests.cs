@@ -9,11 +9,6 @@ namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
 public class UndeserializableEntryTests(NatsIntegrationFixture fixture) : TestBase(fixture)
 {
-    // A legacy JSON envelope from a pre-binary release: the first byte is '{' (0x7B), which never
-    // matches the binary FormatVersion, so the serializer returns null.
-    private static readonly byte[] LegacyJsonEntry =
-        Encoding.UTF8.GetBytes("{\"absexp\":null,\"sldexp\":null,\"data\":\"AQID\"}");
-
     [Fact]
     public async Task PresentButUndeserializableEntryIsReadAsMissAndLoggedAtDebug()
     {
@@ -56,14 +51,5 @@ public class UndeserializableEntryTests(NatsIntegrationFixture fixture) : TestBa
 
         // ...and the entry is now readable, confirming the documented "re-populated on next write" path.
         Assert.Equal(value, await cache.GetAsync(key, TestContext.Current.CancellationToken));
-    }
-
-    // Writes raw bytes to the "cache" bucket at the key the cache reads, bypassing the binary
-    // serializer so the stored entry cannot be deserialized.
-    private async Task WriteRawEntryAsync(string key, byte[] raw)
-    {
-        var encodedKey = new NatsCacheKeyEncoder().Encode(key);
-        var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
-        await kvStore.PutAsync(encodedKey, raw, cancellationToken: TestContext.Current.CancellationToken);
     }
 }

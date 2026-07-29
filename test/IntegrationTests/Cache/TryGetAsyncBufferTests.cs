@@ -1,19 +1,24 @@
 using System.Buffers;
 using System.Text;
+using CodeCargo.Nats.DistributedCache.TestUtils;
 using Microsoft.Extensions.Caching.Distributed;
-using NATS.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
-// Behavioral coverage for the single-copy TryGetAsync(IBufferWriter<byte>) read path: a hit writes the
-// exact payload into the caller's buffer, and every non-hit (miss, undeserializable, absolutely expired)
-// leaves the buffer untouched — the IBufferWriter "nothing written on a miss" contract.
-public class TryGetAsyncBufferTests(NatsIntegrationFixture fixture) : TestBase(fixture)
+// Behavioral coverage for the single-copy TryGetAsync(IBufferWriter<byte>) read path: a hit writes the exact
+// payload into the caller's buffer, and every non-hit (miss, undeserializable, absolutely expired) leaves the
+// buffer untouched -- the IBufferWriter "nothing written on a miss" contract.
+public class TryGetAsyncBufferTests : TestBase
 {
-    // A legacy JSON envelope from a pre-binary release: the first byte is '{' (0x7B), which never matches
-    // the binary FormatVersion, so the entry deserializes to a miss.
-    private static readonly byte[] LegacyJsonEntry =
-        Encoding.UTF8.GetBytes("{\"absexp\":null,\"sldexp\":null,\"data\":\"AQID\"}");
+    // Held explicitly rather than captured from the primary constructor parameter, which would also be passed
+    // to the base constructor and warn under CS9107 (CI builds warnings-as-errors).
+    private readonly NatsIntegrationFixture _fixture;
+
+    public TryGetAsyncBufferTests(NatsIntegrationFixture fixture)
+        : base(fixture) =>
+        _fixture = fixture;
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
@@ -79,24 +84,22 @@ public class TryGetAsyncBufferTests(NatsIntegrationFixture fixture) : TestBase(f
     public async Task WritesNothingOnAbsolutelyExpiredEntry()
     {
         var key = MethodKey();
-        var value = new byte[] { 1, 2, 3, 4 };
-        await DistributedCache.SetAsync(
-            key,
-            value,
-            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(1.1)),
-            Token);
+        var timeProvider = new FakeTimeProvider();
+        await using var provider = BuildProvider(timeProvider);
+        var cache = (IBufferDistributedCache)provider.GetRequiredService<IDistributedCache>();
 
-        // Poll the buffer path until the entry lapses; the final read must be a miss with nothing written.
-        ArrayBufferWriter<byte> destination;
-        bool hit;
-        var attempts = 0;
-        do
-        {
-            await Task.Delay(TimeSpan.FromSeconds(0.5), Token);
-            destination = new ArrayBufferWriter<byte>();
-            hit = await BufferCache.TryGetAsync(key, destination, Token);
-        }
-        while (hit && ++attempts < 6);
+        // Five-minute absolute expiration -> five-minute real NATS TTL, so the entry is still present; the
+        // cache's own clock then jumps past it. Advancing a fake clock (rather than sleeping on a ~1s real
+        // TTL, which risks NATS reaping the key first and landing on NotFound) pins the expired branch.
+        await cache.SetAsync(
+            key,
+            new byte[] { 1, 2, 3, 4 },
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(5)),
+            Token);
+        timeProvider.Advance(TimeSpan.FromMinutes(10));
+
+        var destination = new ArrayBufferWriter<byte>();
+        var hit = await cache.TryGetAsync(key, destination, Token);
 
         Assert.False(hit);
         Assert.Equal(0, destination.WrittenCount);
@@ -130,39 +133,53 @@ public class TryGetAsyncBufferTests(NatsIntegrationFixture fixture) : TestBase(f
     public async Task SlidingEntryPastAbsoluteExpirationWritesNothing()
     {
         var key = MethodKey();
-        var value = new byte[] { 9, 8, 7 };
+        var timeProvider = new FakeTimeProvider();
+        await using var provider = BuildProvider(timeProvider);
+        var cache = (IBufferDistributedCache)provider.GetRequiredService<IDistributedCache>();
 
-        // Sliding renews on access, but the absolute expiration is the hard ceiling: once it passes, the
-        // buffer read must evict and miss, exercising the absolute-expiry branch of the sliding read path.
-        await DistributedCache.SetAsync(
+        // Sliding renews on access, but the absolute expiration is the hard ceiling. The sliding flag drives
+        // the read down the materialized branch; advancing the fake clock past the absolute instant then
+        // exercises that branch's absolute-expiry eviction deterministically.
+        await cache.SetAsync(
             key,
-            value,
+            new byte[] { 9, 8, 7 },
             new DistributedCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromSeconds(1.1))
-                .SetAbsoluteExpiration(TimeSpan.FromSeconds(2)),
+                .SetSlidingExpiration(TimeSpan.FromMinutes(1))
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(5)),
             Token);
+        timeProvider.Advance(TimeSpan.FromMinutes(10));
 
-        ArrayBufferWriter<byte> destination;
-        bool hit;
-        var attempts = 0;
-        do
-        {
-            await Task.Delay(TimeSpan.FromSeconds(0.5), Token);
-            destination = new ArrayBufferWriter<byte>();
-            hit = await BufferCache.TryGetAsync(key, destination, Token);
-        }
-        while (hit && ++attempts < 10);
+        var destination = new ArrayBufferWriter<byte>();
+        var hit = await cache.TryGetAsync(key, destination, Token);
 
         Assert.False(hit);
         Assert.Equal(0, destination.WrittenCount);
     }
 
-    // Writes raw bytes at the key the cache reads, bypassing the binary serializer so the stored entry
-    // cannot be deserialized.
-    private async Task WriteRawEntryAsync(string key, byte[] raw)
+    [Fact]
+    public async Task ReturnsFalseWhenDestinationWriterFails()
     {
-        var encodedKey = new NatsCacheKeyEncoder().Encode(key);
-        var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
-        await kvStore.PutAsync(encodedKey, raw, cancellationToken: Token);
+        var key = MethodKey();
+        await DistributedCache.SetAsync(key, new byte[] { 1, 2, 3, 4 }, new DistributedCacheEntryOptions(), Token);
+
+        // The caller's writer throws on the payload (mirroring HybridCache's quota-limited writer). TryGet
+        // honors the IBufferDistributedCache contract -- it swallows and returns false rather than throwing
+        // -- while the read core records the failure as an error (asserted in TelemetryTests), not a miss.
+        var destination = new QuotaBufferWriter(maxLength: 0);
+        var hit = await BufferCache.TryGetAsync(key, destination, Token);
+
+        Assert.False(hit);
+        Assert.Equal(0, destination.WrittenCount);
+    }
+
+    // A container mirroring TestBase's own, but with a controllable clock injected so absolute-expiry branches
+    // can be reached by advancing time instead of sleeping on a short real TTL.
+    private ServiceProvider BuildProvider(TimeProvider timeProvider)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(timeProvider);
+        _fixture.ConfigureServices(services);
+        services.AddNatsDistributedCache(options => options.BucketName = "cache");
+        return services.BuildServiceProvider();
     }
 }
