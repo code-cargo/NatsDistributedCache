@@ -1,3 +1,5 @@
+using NATS.Client.JetStream.Models;
+
 namespace CodeCargo.Nats.DistributedCache;
 
 public partial class NatsCache : INatsCacheMaintenance
@@ -29,36 +31,30 @@ public partial class NatsCache : INatsCacheMaintenance
 
         // The encoder URL-encodes per character and leaves '.' unescaped (it is RFC 3986 unreserved) while
         // escaping the NATS wildcards '*' and '>', so the encoded prefix is a byte-for-byte leading segment of
-        // every encoded full key beneath it and cannot itself contain a wildcard. Appending the NATS
-        // multi-token wildcard '>' after the '.' separator matches all children of the prefix namespace. The
-        // cache never stores a bare-prefix key (keys are always '{prefix}.{userKey}'), so scoping the filter
-        // to children with '{encodedPrefix}.>' — rather than also matching a key exactly equal to the prefix —
-        // is correct.
+        // every encoded full key beneath it and cannot itself contain a wildcard. A KV key is stored on the
+        // subject '$KV.<bucket>.<encodedKey>', so appending the NATS multi-token wildcard '>' after the '.'
+        // separator yields a subject filter that matches every child of the prefix namespace. The cache never
+        // stores a bare-prefix key (keys are always '{prefix}.{userKey}'), so scoping the filter to children
+        // with '$KV.<bucket>.{encodedPrefix}.>' -- rather than also matching a key exactly equal to the prefix
+        // -- is correct.
         var encodedPrefix = _keyEncoder.Encode(rawPrefix);
-        var filter = $"{encodedPrefix}.>";
+        var subjectFilter = $"$KV.{_bucketName}.{encodedPrefix}.>";
 
         var store = await GetKvStore().ConfigureAwait(false);
 
-        // Snapshot the matching keys before purging any of them, rather than purging inside the enumeration.
-        // GetKeysAsync is backed by a live watch; issuing purges while it is still draining its initial set
-        // would interleave our own delete markers with the keys being read. Buffering the (small, tenant-
-        // scoped) key set first keeps enumeration and mutation cleanly separated.
-        var keys = new List<string>();
-        await foreach (var key in store
-                           .GetKeysAsync(new[] { filter }, cancellationToken: cancellationToken)
-                           .ConfigureAwait(false))
-        {
-            keys.Add(key);
-        }
+        // Purge every matching message from the KV bucket's backing JetStream stream ('KV_<bucket>') in a
+        // single server round-trip, scoped to the prefix's subject space. This deletes the messages outright
+        // rather than enumerating the keys and issuing a per-key KV purge -- which would take N round-trips and
+        // leave purge-marker tombstones that linger until a PurgeDeletes() compaction. With the bucket's
+        // single-revision history (History = 1) there is exactly one message per live key, so the returned
+        // Purged count is the number of entries removed.
+        var response = await store.JetStreamContext
+            .PurgeStreamAsync(
+                $"KV_{_bucketName}",
+                new StreamPurgeRequest { Filter = subjectFilter },
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        var purged = 0L;
-        foreach (var key in keys)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await store.PurgeAsync(key, cancellationToken: cancellationToken).ConfigureAwait(false);
-            purged++;
-        }
-
-        return purged;
+        return response.Purged;
     }
 }

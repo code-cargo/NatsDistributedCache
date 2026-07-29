@@ -16,6 +16,12 @@ public interface INatsCacheMaintenance
     /// <c>{prefix}.{key}</c> are matched). This is a bulk, irreversible maintenance operation intended for
     /// scenarios such as evicting every entry belonging to a single tenant.
     /// </summary>
+    /// <remarks>
+    /// The matching entries are removed in a single JetStream stream purge (a subject-filtered purge of the
+    /// bucket's backing <c>KV_&lt;bucket&gt;</c> stream), so the messages are deleted outright rather than
+    /// left as purge-marker tombstones. This requires JetStream stream-purge permission on the
+    /// <c>KV_&lt;bucket&gt;</c> stream, in addition to the ordinary KV access the cache uses.
+    /// </remarks>
     /// <param name="prefix">
     /// The key sub-prefix to purge, relative to the configured cache key prefix. Must be non-empty and not
     /// consist solely of whitespace or <c>'.'</c> characters, so a scoped purge cannot collapse into a purge

@@ -191,8 +191,11 @@ The supplied prefix is relative to `CacheKeyPrefix` and matches keys hierarchica
 
 Notes:
 
-- This is a bulk, **irreversible** maintenance operation, not a per-request cache call. It enumerates and
-  purges every matching key.
+- This is a bulk, **irreversible** maintenance operation, not a per-request cache call. It removes every
+  matching entry in a single JetStream stream purge (a subject-filtered purge of the bucket's backing
+  `KV_<bucket>` stream), so the messages are deleted outright rather than left as purge-marker tombstones.
+- This requires JetStream stream-purge permission on the `KV_<bucket>` stream, in addition to the ordinary
+  KV access the cache uses.
 - The prefix must be non-empty and not consist solely of whitespace or `.` characters; otherwise
   `PurgeByPrefixAsync` throws `ArgumentException`. This guards against accidentally purging the entire
   prefix space (or, with no `CacheKeyPrefix`, the whole bucket).
