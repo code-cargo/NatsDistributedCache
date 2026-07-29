@@ -29,7 +29,12 @@ public interface INatsCacheMaintenance
     /// the whole bucket).
     /// </param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
-    /// <returns>The number of keys that were purged.</returns>
+    /// <returns>
+    /// The number of stream messages purged beneath the prefix. For the cache's single-revision
+    /// (<c>History = 1</c>) buckets this is the number of live entries removed, though it can also include
+    /// not-yet-compacted delete markers left by earlier evictions, so treat it as an approximate count rather
+    /// than an exact live-entry total.
+    /// </returns>
     /// <exception cref="System.ArgumentException">
     /// <paramref name="prefix"/> is null, empty, whitespace, or consists solely of <c>'.'</c> characters.
     /// </exception>

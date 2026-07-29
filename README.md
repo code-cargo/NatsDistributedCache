@@ -182,7 +182,7 @@ using CodeCargo.Nats.DistributedCache;
 var maintenance = serviceProvider.GetRequiredService<INatsCacheMaintenance>();
 
 // Purges every key stored as "orders.<...>" beneath the configured CacheKeyPrefix.
-// Returns the number of keys purged.
+// Returns the number of stream messages purged (see the count note below).
 long purged = await maintenance.PurgeByPrefixAsync("orders");
 ```
 
@@ -201,6 +201,9 @@ Notes:
   prefix space (or, with no `CacheKeyPrefix`, the whole bucket).
 - Purging is scoped to children of the prefix (`<prefix>.<...>`); the cache never stores a bare key equal
   to the prefix itself.
+- The returned count is the number of stream messages purged. For the cache's single-revision
+  (`History = 1`) buckets this equals the number of live entries removed, but it can also include
+  not-yet-compacted delete markers left by earlier evictions, so treat it as an approximate count.
 
 ## Controlling Expiration Timing
 
