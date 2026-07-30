@@ -1,13 +1,13 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Text;
 using CodeCargo.Nats.DistributedCache.TestUtils;
 using CodeCargo.Nats.DistributedCache.TestUtils.Services.Diagnostics;
 using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NATS.Net;
@@ -16,11 +16,6 @@ namespace CodeCargo.Nats.DistributedCache.IntegrationTests.Cache;
 
 public class TelemetryTests : TestBase
 {
-    // A legacy JSON envelope from a pre-binary release: the first byte is '{' (0x7B), which never matches
-    // the binary FormatVersion, so the serializer returns null and the read is an undeserializable miss.
-    private static readonly byte[] LegacyJsonEntry =
-        Encoding.UTF8.GetBytes("{\"absexp\":null,\"sldexp\":null,\"data\":\"AQID\"}");
-
     // Held explicitly rather than captured from a primary constructor parameter: capturing a value that is
     // also passed to the base constructor warns under CS9107, and CI builds with warnings as errors.
     private readonly NatsIntegrationFixture _fixture;
@@ -135,6 +130,73 @@ public class TelemetryTests : TestBase
             .Select(m => (Operation: m.Tags["nats.cache.operation"], Result: m.Tags["nats.cache.result"]))
             .ToArray();
         Assert.Equal([("set", "ok"), ("get", "hit")], results);
+    }
+
+    [Fact]
+    public async Task BufferReadWithFailingDestinationTagsErrorNotUndeserializableMiss()
+    {
+        var key = MethodKey();
+        var token = TestContext.Current.CancellationToken;
+
+        // Directly constructed so its logs are captured; it publishes on the process-wide fallback meter.
+        var logger = new RecordingLogger<NatsCache>();
+        var cache = new NatsCache(Options.Create(new NatsCacheOptions { BucketName = "cache" }), NatsConnection, logger);
+        await cache.SetAsync(key, [1, 2, 3, 4], new DistributedCacheEntryOptions(), token);
+
+        using var duration = CreateFallbackDurationCollector();
+        using var misses = CreateFallbackMissesCollector();
+
+        // The caller's writer rejects any payload, exactly as HybridCache's quota-limited writer does past
+        // its limit. The failure comes from the destination, not the stored bytes, so it must surface as an
+        // error rather than an undeserializable miss -- otherwise a burst of oversized entries would be
+        // indistinguishable from a stalled JSON->binary migration in the miss-reason signal.
+        var destination = new QuotaBufferWriter(maxLength: 0);
+        Assert.False(await ((IBufferDistributedCache)cache).TryGetAsync(key, destination, token));
+        Assert.Equal(0, destination.WrittenCount);
+
+        // Telemetry records error, not a miss.
+        var measurement = Assert.Single(duration.GetMeasurementSnapshot());
+        Assert.Equal("get", measurement.Tags["nats.cache.operation"]);
+        Assert.Equal("error", measurement.Tags["nats.cache.result"]);
+        Assert.NotNull(measurement.Tags["error.type"]);
+        Assert.Empty(misses.GetMeasurementSnapshot());
+
+        // And it is logged once at Warning with the exception -- like any swallowed TryGet failure -- not at
+        // Debug as an undeserializable entry.
+        var record = Assert.Single(logger.Records, r => r.EventId.Name == "Exception");
+        Assert.Equal(LogLevel.Warning, record.LogLevel);
+        Assert.NotNull(record.Exception);
+    }
+
+    [Fact]
+    public async Task BufferReadOfExpiredEntryTagsMissReasonExpired()
+    {
+        var key = MethodKey();
+        var timeProvider = new FakeTimeProvider();
+        await using var provider = BuildProvider(timeProvider);
+        var cache = (IBufferDistributedCache)provider.GetRequiredService<IDistributedCache>();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var token = TestContext.Current.CancellationToken;
+
+        // Five-minute absolute expiration -> five-minute real NATS TTL; the cache's own clock then jumps past
+        // it, so the entry is still present but absolutely expired -- the only deterministic way to reach the
+        // expired branch, here through the buffer overload rather than GetAsync.
+        await cache.SetAsync(
+            key,
+            new ReadOnlySequence<byte>(new byte[] { 1, 2, 3 }),
+            new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(5)),
+            token);
+
+        using var misses = CreateMissesCollector(meterFactory);
+        timeProvider.Advance(TimeSpan.FromMinutes(10));
+
+        var destination = new ArrayBufferWriter<byte>();
+        Assert.False(await cache.TryGetAsync(key, destination, token));
+        Assert.Equal(0, destination.WrittenCount);
+
+        var miss = Assert.Single(misses.GetMeasurementSnapshot());
+        Assert.Equal("get", miss.Tags["nats.cache.operation"]);
+        Assert.Equal("expired", miss.Tags["nats.cache.miss.reason"]);
     }
 
     [Fact]
@@ -385,11 +447,4 @@ public class TelemetryTests : TestBase
             Options.Create(new NatsCacheOptions { BucketName = "does-not-exist" }),
             NatsConnection,
             new RecordingLogger<NatsCache>());
-
-    private async Task WriteRawEntryAsync(string key, byte[] raw)
-    {
-        var encodedKey = new NatsCacheKeyEncoder().Encode(key);
-        var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
-        await kvStore.PutAsync(encodedKey, raw, cancellationToken: TestContext.Current.CancellationToken);
-    }
 }

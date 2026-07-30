@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using CodeCargo.Nats.DistributedCache.TestUtils;
 using CodeCargo.Nats.DistributedCache.TestUtils.Services.Logging;
 using Microsoft.Extensions.Caching.Distributed;
@@ -17,6 +18,12 @@ namespace CodeCargo.Nats.DistributedCache.IntegrationTests;
 [Collection(NatsCollection.Name)]
 public abstract class TestBase : IAsyncLifetime
 {
+    // A legacy JSON envelope from a pre-binary release: the first byte is '{' (0x7B), which never matches the
+    // binary FormatVersion, so the serializer returns null and the read is an undeserializable miss. Shared by
+    // the tests that seed one via WriteRawEntryAsync.
+    protected static readonly byte[] LegacyJsonEntry =
+        Encoding.UTF8.GetBytes("{\"absexp\":null,\"sldexp\":null,\"data\":\"AQID\"}");
+
     private int _disposed;
 
     /// <summary>
@@ -106,4 +113,15 @@ public abstract class TestBase : IAsyncLifetime
     /// Gets the key for the current test method
     /// </summary>
     protected string MethodKey([CallerMemberName] string caller = "") => caller;
+
+    /// <summary>
+    /// Writes raw bytes at the key the cache reads, bypassing the binary serializer so the stored entry
+    /// cannot be deserialized (used to seed legacy/corrupt entries).
+    /// </summary>
+    protected async Task WriteRawEntryAsync(string key, byte[] raw)
+    {
+        var encodedKey = new NatsCacheKeyEncoder().Encode(key);
+        var kvStore = await NatsConnection.CreateKeyValueStoreContext().GetStoreAsync("cache");
+        await kvStore.PutAsync(encodedKey, raw, cancellationToken: TestContext.Current.CancellationToken);
+    }
 }
