@@ -30,7 +30,11 @@ public static class NatsDistributedCacheExtensions
             .Configure(configureOptions)
             .Validate(o => !string.IsNullOrWhiteSpace(o.BucketName), NatsCacheOptions.BucketNameRequiredMessage)
             .ValidateOnStart();
-        services.AddSingleton<IDistributedCache>(sp =>
+
+        // Register the concrete NatsCache as the single instance, then forward both public service surfaces
+        // to it. IDistributedCache and INatsCacheMaintenance must resolve to the SAME instance so a purge and
+        // a cache hit share one KV store, key prefix, and key encoder.
+        services.AddSingleton<NatsCache>(sp =>
         {
             var optionsAccessor = sp.GetRequiredService<IOptions<NatsCacheOptions>>();
             var natsConnection = connectionServiceKey == null
@@ -52,6 +56,8 @@ public static class NatsDistributedCacheExtensions
                 MeterFactory = meterFactory,
             };
         });
+        services.AddSingleton<IDistributedCache>(sp => sp.GetRequiredService<NatsCache>());
+        services.AddSingleton<INatsCacheMaintenance>(sp => sp.GetRequiredService<NatsCache>());
 
         return services;
     }
