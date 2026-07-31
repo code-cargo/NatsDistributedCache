@@ -277,6 +277,39 @@ two caches in the same process distinguishable. Spans carry the same tags, plus 
 | `undeserializable` | Legacy or corrupt envelope (see [Cache Entry Format and Upgrades](#cache-entry-format-and-upgrades)). A sustained rate means a format migration has not drained. |
 | `revision_conflict` | Lost an optimistic-concurrency race while refreshing a sliding expiration. A sustained rate means key contention. |
 
+### Histogram buckets
+
+`nats.cache.operation.duration` records **seconds**, which is the OpenTelemetry convention, but
+OpenTelemetry's *default* explicit bucket bounds — `0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500,
+5000, 7500, 10000` — are shaped for milliseconds. Left at the default, every realistic cache operation
+falls into the single `(0, 5]` bucket and quantile queries become meaningless: `histogram_quantile(0.99, …)`
+interpolates inside that one bucket and reports ~4.95s for an operation that actually took a few
+milliseconds. Anything derived from the histogram's `sum` and `count` — hit ratio, operation rate, mean
+latency — is unaffected.
+
+So configure bounds for this instrument once, at registration:
+
+```csharp
+metrics.AddView(
+    NatsCacheTelemetryNames.OperationDurationInstrumentName,
+    new ExplicitBucketHistogramConfiguration
+    {
+        // Covers ~1ms to 5s; widen the tail if your NATS round-trip is slower.
+        Boundaries = [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    });
+```
+
+Base-2 exponential bucket aggregation is the other option, and it needs no unit-specific tuning at all:
+
+```csharp
+metrics.AddView(
+    NatsCacheTelemetryNames.OperationDurationInstrumentName,
+    new Base2ExponentialBucketHistogramConfiguration());
+```
+
+It requires a pipeline that carries exponential histograms end to end — OTLP to a backend that supports
+them, Prometheus native histograms included. The `le`-based queries below assume explicit bounds.
+
 ### Example queries
 
 The series names below assume the default Prometheus exporter, which appends the unit and a `_total`
@@ -290,7 +323,8 @@ suffix (`add_metric_suffixes = true`): the histogram's unit `s` makes it `..._se
 sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get",nats_cache_result="hit"}[5m]))
   / sum(rate(nats_cache_operation_duration_seconds_count{nats_cache_operation="get"}[5m]))
 
-# p99 latency by operation
+# p99 latency by operation. Requires bucket bounds configured for the instrument (see above) — with
+# OpenTelemetry's millisecond-shaped defaults this returns ~4.95s regardless of actual latency.
 histogram_quantile(0.99, sum by (le, nats_cache_operation)
   (rate(nats_cache_operation_duration_seconds_bucket[5m])))
 
