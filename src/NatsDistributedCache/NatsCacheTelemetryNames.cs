@@ -35,6 +35,11 @@ public static class NatsCacheTelemetryNames
     /// Histogram of cache operation durations, in seconds. Its count also yields operation rate, hit ratio,
     /// and error rate via the <c>nats.cache.result</c> tag.
     /// </summary>
+    /// <remarks>
+    /// OpenTelemetry's default explicit bucket bounds are millisecond-shaped, so every cache operation lands
+    /// in one bucket and quantile queries are meaningless until bounds are configured for this instrument
+    /// (or it is switched to base-2 exponential aggregation). Pass this name to <c>AddView</c> to do so.
+    /// </remarks>
     public const string OperationDurationInstrumentName = "nats.cache.operation.duration";
 
     /// <summary>
